@@ -128,5 +128,7 @@ xdg-utils
 xfsprogs
 xl2tpd
 zsh
+
+# --- Clean Linux additions ---
 fastfetch
 btop
