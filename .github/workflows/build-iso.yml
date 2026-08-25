@@ -28,7 +28,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          pacman -Syu --noconfirm git archiso squashfs-tools
+          pacman -Syu --noconfirm git archiso squashfs-tools github-cli
 
       - name: Checkout repository
         uses: actions/checkout@v4
