@@ -3,3 +3,5 @@
 *.img
 *.pkg.tar.zst
 __pycache__/
+/work/
+/out/
