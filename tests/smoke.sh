@@ -36,6 +36,12 @@ expect '^installed +1\.5\.7' b info zstd
 expect 'Nothing to do' b plan
 b doctor
 
+step "reproducible: lz4 rebuilt in another work directory has the same bytes"
+pkg=$(b build lz4 2>/dev/null)
+sum=$(sha256sum <"$pkg")
+[[ $(BURN_WORK=$T/work2 b --rebuild build lz4 2>/dev/null) == "$pkg" ]] || fail "the lz4 rebuild got another BUILDID"
+[[ $(sha256sum <"$pkg") == "$sum" ]] || fail "lz4 is not reproducible"
+
 step "a feature change makes the plan rebuild zstd"
 expect 'zstd.*rebuild' b -f -lz4 plan
 
