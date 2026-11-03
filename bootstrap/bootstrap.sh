@@ -15,7 +15,6 @@ shopt -s nullglob inherit_errexit
 
 HERE=$(cd "${BASH_SOURCE[0]%/*}" && pwd)
 TOP=$(cd "$HERE/.." && pwd)
-BURN_BIN=$TOP/burn/burn
 # shellcheck source=bootstrap/lib.sh
 . "$HERE/lib.sh"
 
@@ -39,6 +38,21 @@ while (($#)); do
 done
 ((${#STAGES[@]})) || STAGES=(all)
 
+export BURN_CACHE=${BURN_CACHE:-$TOP/build/cache} BURN_PROFILE_DIR=${BURN_PROFILE_DIR:-$TOP/profiles}
+if [[ -z $RECIPES ]]; then
+	for d in "$TOP/../CleanLinux-Recipes/packages" "$TOP/build/recipes/packages"; do
+		if [[ -d $d ]]; then RECIPES=$d && break; fi
+	done
+fi
+if [[ -z $RECIPES ]]; then
+	git clone -q --depth 1 https://github.com/vovawees/CleanLinux-Recipes.git "$TOP/build/recipes"
+	RECIPES=$TOP/build/recipes/packages
+fi
+RECIPES=$(readlink -f "$RECIPES")
+# burn (github.com/vovawees/burn): the release the burn recipe pins, built for this host;
+# BURN_BIN=path/to/burn takes another one (a development build, say)
+BURN_BIN=${BURN_BIN:-$("$HERE/host-burn.sh" "$RECIPES" "$TOP/build/host")}
+
 if [[ -z $ARCH && -n $PROFILE ]]; then
 	ARCH=$(BURN_RECIPES='' "$BURN_BIN" -p "$PROFILE" profile show | awk '$1 == "chost" { split($2, a, "-"); print a[1] }')
 fi
@@ -52,19 +66,8 @@ PROFILE=${PROFILE:-generic-$ARCH}
 TRIPLE=$ARCH-cleanlinux-linux-gnu
 WORK=$(readlink -m "${WORK:-$TOP/build/$ARCH}")
 TOOLS=$WORK/tools ROOTFS=$WORK/rootfs SRCDIR=$WORK/src OBJ=$WORK/obj LOGS=$WORK/logs STAMPS=$WORK/stamps
-export BURN_CACHE=${BURN_CACHE:-$TOP/build/cache}
 export PATH=$TOOLS/bin:$PATH LC_ALL=C
 unset CFLAGS CXXFLAGS LDFLAGS CPPFLAGS CC CXX
-if [[ -z $RECIPES ]]; then
-	for d in "$TOP/../CleanLinux-Recipes/packages" "$WORK/recipes/packages"; do
-		if [[ -d $d ]]; then RECIPES=$d && break; fi
-	done
-fi
-if [[ -z $RECIPES ]]; then
-	git clone -q --depth 1 https://github.com/vovawees/CleanLinux-Recipes.git "$WORK/recipes"
-	RECIPES=$WORK/recipes/packages
-fi
-RECIPES=$(readlink -f "$RECIPES")
 mkdir -p "$TOOLS" "$ROOTFS" "$SRCDIR" "$OBJ" "$LOGS" "$STAMPS"
 
 burn() { "$BURN_BIN" -R "$RECIPES" -p "$PROFILE" --target "$TRIPLE" -j "$JOBS" "$@"; }

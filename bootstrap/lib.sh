@@ -220,14 +220,10 @@ stage_base() {
 	step 80-base base_install
 }
 
-install_burn() {
-	local dst=$ROOTFS/usr/lib/burn
-	rm -rf "$dst" && mkdir -p "$dst" "$ROOTFS/usr/share/burn" "$ROOTFS/etc/burn/hooks/pre-update.d"
-	cp -r "$TOP/burn/burn" "$TOP/burn/lib" "$TOP/burn/buildtypes" "$dst/"
+# burn itself is a package of base; next to it go the hardware profiles of this repository
+install_profiles() {
+	rm -rf "$ROOTFS/usr/share/burn/profiles" && mkdir -p "$ROOTFS/usr/share/burn"
 	cp -r "$TOP/profiles" "$ROOTFS/usr/share/burn/"
-	cp "$TOP/burn/burn.conf" "$ROOTFS/usr/share/burn/burn.conf.example"
-	cp "$TOP/burn/hooks/pre-update.d/"* "$ROOTFS/etc/burn/hooks/pre-update.d/"
-	ln -sfn ../lib/burn/burn "$ROOTFS/usr/bin/burn"
 }
 
 rootfs_test() {
@@ -268,8 +264,8 @@ make_tarball() {
 stage_image() {
 	info "== stage image"
 	[[ -f $STAMPS/80-base ]] || die "run the base stage first"
-	rm -f "$STAMPS/90-burn" "$STAMPS/91-rootfs-test" "$STAMPS/99-tarball"
-	step 90-burn install_burn
+	rm -f "$STAMPS/90-profiles" "$STAMPS/91-rootfs-test" "$STAMPS/99-tarball"
+	step 90-profiles install_profiles
 	step 91-rootfs-test rootfs_test
 	step 99-tarball make_tarball
 }
