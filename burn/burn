@@ -5,7 +5,7 @@ set -o errexit -o nounset -o pipefail
 # inherit_errexit: a failing command inside $(...) fails the substitution too
 shopt -s nullglob extglob inherit_errexit
 
-BURN_VERSION=0.2.0
+BURN_VERSION=0.3.0
 BURN_SELF=$(readlink -f "${BASH_SOURCE[0]}")
 BURN_HOME=${BURN_HOME:-${BURN_SELF%/*}}
 
