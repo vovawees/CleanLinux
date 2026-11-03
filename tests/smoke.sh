@@ -8,7 +8,9 @@ RECIPES=$(readlink -f "${1:-${BURN_RECIPES:-$TESTS/../../CleanLinux-Recipes/pack
 [[ -d $RECIPES ]] || fail "recipes not found: $RECIPES"
 printf 'ASSUME_INSTALLED=(glibc)\nLOCALES=""\n' >"$T/burn.conf"
 b() { "$BURN" -r "$ROOTFS" -R "$RECIPES" -c "$T/burn.conf" --host-deps --yes "$@"; }
-export LD_LIBRARY_PATH=$ROOTFS/usr/lib
+# the installed programs with the root's libraries; not for burn itself, whose libzstd (and so
+# the package bytes) must not change when the root gets another zstd
+rt() { LD_LIBRARY_PATH=$ROOTFS/usr/lib "$@"; }
 
 step "lint every recipe"
 b lint
@@ -18,15 +20,15 @@ b install zstd pkgconf
 b list
 
 step "the installed tools work and use the root's libraries"
-"$ROOTFS/usr/bin/zstd" --version
-"$ROOTFS/usr/bin/xz" --version | head -n1
-"$ROOTFS/usr/bin/lz4" --version
-"$ROOTFS/usr/bin/pkg-config" --version
-[[ $(echo clean | "$ROOTFS/usr/bin/zstd" -q | "$ROOTFS/usr/bin/zstd" -dq) == clean ]] || fail "zstd round trip"
-[[ $(echo clean | "$ROOTFS/usr/bin/zstd" -q --format=xz | "$ROOTFS/usr/bin/xz" -dc) == clean ]] || fail "zstd xz support"
-[[ $(echo clean | "$ROOTFS/usr/bin/zstd" -q --format=lz4 | "$ROOTFS/usr/bin/lz4" -dc) == clean ]] || fail "zstd lz4 support"
+rt "$ROOTFS/usr/bin/zstd" --version
+rt "$ROOTFS/usr/bin/xz" --version | head -n1
+rt "$ROOTFS/usr/bin/lz4" --version
+rt "$ROOTFS/usr/bin/pkg-config" --version
+[[ $(echo clean | rt "$ROOTFS/usr/bin/zstd" -q | rt "$ROOTFS/usr/bin/zstd" -dq) == clean ]] || fail "zstd round trip"
+[[ $(echo clean | rt "$ROOTFS/usr/bin/zstd" -q --format=xz | rt "$ROOTFS/usr/bin/xz" -dc) == clean ]] || fail "zstd xz support"
+[[ $(echo clean | rt "$ROOTFS/usr/bin/zstd" -q --format=lz4 | rt "$ROOTFS/usr/bin/lz4" -dc) == clean ]] || fail "zstd lz4 support"
 expect 'liblz4\.so' readelf -d "$ROOTFS/usr/bin/zstd"
-expect "$ROOTFS/usr/lib/libz\.so\.1" ldd "$ROOTFS/usr/bin/zstd"
+expect "$ROOTFS/usr/lib/libz\.so\.1" rt ldd "$ROOTFS/usr/bin/zstd"
 
 step "queries"
 expect '^/usr/bin/lz4$' b files lz4
@@ -47,7 +49,7 @@ expect 'zstd.*rebuild' b -f -lz4 plan
 
 step "kmod, and the depmod trigger on kernel install, upgrade and removal"
 b install kmod
-"$ROOTFS/usr/bin/kmod" --version
+rt "$ROOTFS/usr/bin/kmod" --version
 cp -r "$TESTS/fixtures" "$T/fixtures"
 k() { b -R "$T/fixtures" "$@"; }
 k install fakekernel

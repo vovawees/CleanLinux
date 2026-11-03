@@ -6,8 +6,8 @@
 RECIPES=$T/recipes
 cp -r "$TESTS/fixtures" "$RECIPES"
 b() { "$BURN" -r "$ROOTFS" -R "$RECIPES" --host-deps --yes "$@"; }
-export LD_LIBRARY_PATH=$ROOTFS/usr/lib
-app() { "$ROOTFS/usr/bin/app"; }
+# the root's libraries for its programs only, never for burn
+app() { LD_LIBRARY_PATH=$ROOTFS/usr/lib "$ROOTFS/usr/bin/app"; }
 ver() { b list | awk -v p="$1" '$1 == p { print $2 }'; }
 
 step "checksum --write fills in the sha256 sums"
