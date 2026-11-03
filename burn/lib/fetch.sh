@@ -88,7 +88,8 @@ fetch_sources() {
 	done
 }
 
-# remote_sources PKG...: "file<TAB>spec<TAB>sha256<TAB>pkg" for every remote source
+# remote_sources PKG...: "file<US>spec<US>sha256<US>pkg" for every remote source (US = \x1f, not
+# whitespace: an empty sha256 stays an empty field)
 remote_sources() {
 	local p i
 	for p; do
@@ -97,7 +98,7 @@ remote_sources() {
 			features_resolve
 			for i in "${!source[@]}"; do
 				source_info "${source[$i]}"
-				((SRC_LOCAL)) || printf '%s\t%s\t%s\t%s\n' "$CACHE_DIR/sources/$SRC_NAME" "${source[$i]}" "${sha256[$i]:-}" "$name"
+				((SRC_LOCAL)) || printf '%s\x1f%s\x1f%s\x1f%s\n' "$CACHE_DIR/sources/$SRC_NAME" "${source[$i]}" "${sha256[$i]:-}" "$name"
 			done
 		)
 	done
@@ -109,10 +110,11 @@ prefetch() {
 	local e file spec sum pkg running=0 failed=0
 	local -a list=()
 	local -A seen=()
+	for pkg; do recipe_path "$pkg" >/dev/null || die "recipe not found: $pkg"; done
 	mapfile -t list < <(remote_sources "$@")
 	mkdir -p "$CACHE_DIR/sources"
 	for e in "${list[@]}"; do
-		IFS=$'\t' read -r file spec sum pkg <<<"$e"
+		IFS=$'\x1f' read -r file spec sum pkg <<<"$e"
 		[[ -z ${seen[$file]:-} ]] || continue
 		seen[$file]=1
 		if ((running >= FETCH_JOBS)); then
