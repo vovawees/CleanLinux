@@ -50,7 +50,7 @@ features и настройками; она ставится и обновляе�
 
 1. **План** — `burn plan` показывает, что обновится, риск (`core` / `major`) и какие пакеты придётся пересобрать.
 2. **Сначала сборка, потом установка** — всё собирается в кеш; если хоть что-то не собралось, система не тронута.
-3. **Снимок** — pre-update хуки (btrfs-снимок из коробки).
+3. **Снимок** — read-only снимок btrfs перед применением (burn делает его сам, без btrfs-progs) и pre-update хуки.
 4. **ABI-aware** — сменилась soname библиотеки → старая сохраняется (*preserved libs*), зависимые пакеты пересобираются автоматически.
 5. **Проверка** — `burn doctor` ищет пропавшие и устаревшие библиотеки.
 6. **Откат и заморозка** — `burn rollback <pkg>`, `burn hold <pkg>`, журнал `burn history`.
@@ -89,9 +89,8 @@ burn profile show      # итоговые CFLAGS, features, драйверы
 ## Структура
 
 ```
-burn/        bash-прототип пакетного менеджера (эталон до паритета C-версии: github.com/vovawees/burn)
 profiles/     профили железа: base, generic-*, native, devices/*
-bootstrap/    сборка системы с нуля: тулчейн → базовая система → образ
+bootstrap/    сборка системы с нуля: тулчейн → базовая система → образ (burn для хоста — host-burn.sh)
 tests/        smoke-тест на настоящих рецептах и тест rolling+++
 docs/         архитектура, rolling+++, рецепты, roadmap
 ```
@@ -103,8 +102,10 @@ docs/         архитектура, rolling+++, рецепты, roadmap
 ```sh
 git clone https://github.com/vovawees/CleanLinux
 git clone https://github.com/vovawees/CleanLinux-Recipes
+git clone https://github.com/vovawees/burn && make -C burn    # компилятор C и libzstd
 cd CleanLinux
-alias burn="$PWD/burn/burn -R $PWD/../CleanLinux-Recipes/packages"
+alias burn="$PWD/../burn/burn -R $PWD/../CleanLinux-Recipes/packages"
+export BURN_PROFILE_DIR=$PWD/profiles
 
 burn search
 burn info zstd
@@ -113,7 +114,7 @@ tests/smoke.sh      # собирает и ставит zstd, zlib-ng, xz, lz4, p
 tests/rolling.sh    # soname bump, preserved libs, ABI-пересборка, hold, rollback
 ```
 
-Собрать систему с нуля (нужны gcc/g++, make, bison, gawk, m4, perl, python3, meson, ninja, cmake, pkg-config, git, curl; для чужой архитектуры — `qemu-user`):
+Собрать систему с нуля (нужны gcc/g++, make, bison, gawk, m4, perl, python3, meson, ninja, cmake, pkg-config, git, curl и заголовки libzstd; для чужой архитектуры — `qemu-user`). burn для хоста bootstrap собирает сам — из того же релиза, что ставится в образ:
 
 ```sh
 bootstrap/bootstrap.sh --arch x86_64 toolchain        # кросс-тулчейн + glibc в rootfs

@@ -6,15 +6,15 @@ CleanLinux берёт свежесть rolling и добавляет к ней �
 ## Что делает `burn update`
 
 ```
-sync ─► plan ─► build ALL ─► pre-update hooks ─► apply ─► ABI follow-up ─► post-update hooks ─► doctor
-                   │              (снимок btrfs)                │
-                   └─ ошибка сборки: система не тронута          └─ пересборка зависимых, preserved libs
+sync ─► plan ─► build ALL ─► snapshot + pre-update hooks ─► apply ─► ABI follow-up ─► post-update hooks ─► doctor
+                   │                (btrfs)                          │
+                   └─ ошибка сборки: система не тронута               └─ пересборка зависимых, preserved libs
 ```
 
 1. **sync** — `git fetch` репозиториев рецептов на канале `CHANNEL` (только fast-forward).
 2. **plan** — для каждого установленного пакета: `upgrade`, `downgrade`, `rebuild: recipe or features changed`, `held`, `orphan`. Метки риска: `major` (сменилась первая цифра версии) и `core` (пакет из `CORE_PKGS`: glibc, gcc, binutils, linux, mesa, llvm). Ниже — история изменений рецептов из git с прошлого обновления.
 3. **build ALL** — все пакеты собираются в кеш в порядке зависимостей. Если хоть один не собрался, обновление прерывается **до** изменения системы.
-4. **pre-update hooks** — точка отката. Из коробки: read-only снимок btrfs в `/.snapshots/burn-<время>` (хранятся последние `BURN_SNAPSHOTS_KEEP=5`). Упавший pre-хук останавливает обновление.
+4. **snapshot + pre-update hooks** — точка отката. Если корень — подтом btrfs, burn сам делает read-only снимок `/.snapshots/burn-<время>` (ioctl ядра, без btrfs-progs; хранятся последние `SNAPSHOTS=5` из `burn.conf`, `0` — без снимков; вручную — `burn snapshot`), потом запускает хуки `/etc/burn/hooks/pre-update.d/`. Ошибка снимка или pre-хука останавливает обновление.
 5. **apply** — установка собранных пакетов; удалённые из пакета файлы чистятся, конфиги из `backup` не перезаписываются (новая версия ложится как `.burnnew`).
 6. **ABI follow-up** — если у библиотеки пропала soname (например, `libfoo.so.1` → `libfoo.so.2`):
    - старая библиотека остаётся на месте как **preserved** — уже установленные программы продолжают работать;

@@ -15,7 +15,7 @@ CleanLinux-Recipes  ──►  burn  ──►  система на устрой
 
 1. **Рецепты** ([CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes)) — что собирать: ссылка на исходник upstream, sha256, тип сборки, зависимости, features. Бинарников там нет и не будет.
 2. **Профиль** (`profiles/`) — под что собирать: архитектура, флаги CPU, драйверы GPU, параметры ядра, набор features.
-3. **burn** ([отдельный репозиторий](https://github.com/vovawees/burn), C; в `burn/` — bash-прототип до паритета) — как собирать и ставить: скачивание и проверка, сборка в кеш, установка, база пакетов, обновления rolling release+++.
+3. **burn** ([отдельный репозиторий](https://github.com/vovawees/burn), C) — как собирать и ставить: скачивание и проверка, сборка в кеш, установка, база пакетов, обновления rolling release+++.
 4. **bootstrap** (`bootstrap/`) — как получить первую систему, когда ещё ничего нет.
 
 ## Базовые решения
@@ -28,28 +28,20 @@ CleanLinux-Recipes  ──►  burn  ──►  система на устрой
 | **dinit** | Маленький и быстрый init с зависимостями и супервизией сервисов, без тяжёлого стека systemd. Важно для слабых устройств с 2–4 ГБ RAM. |
 | **Стек выбирает сборка** | Wayland или X11, PipeWire или PulseAudio — features программного стека задаёт сборка (или пользователь), а не база и не профиль железа. Рецепты по умолчанию следуют upstream. |
 | **zlib-ng, zstd** | zlib-ng — та же ABI, что у zlib, но с SIMD на x86_64 и arm64. zstd — для пакетов (`.tar.zst`) и сжатия btrfs. |
-| **btrfs + zstd** (рекомендация) | Снимки перед каждым обновлением (`hooks/pre-update.d/10-btrfs-snapshot`), прозрачное сжатие — меньше места на маленьких eMMC/SD. |
+| **btrfs + zstd** (рекомендация) | Снимки перед каждым обновлением (burn делает их сам через ioctl btrfs, `SNAPSHOTS` в `burn.conf`), прозрачное сжатие — меньше места на маленьких eMMC/SD. |
 | **Свой triple** | `x86_64-cleanlinux-linux-gnu`, `aarch64-cleanlinux-linux-gnu` — тулчейн никогда не перепутает систему с хостом. |
-| **burn на C** | Один бинарник, только libc + libzstd: рецепты разбираются без запуска bash, tar и zstd работают внутри процесса, установка атомарна. bash остаётся для команд сборки внутри рецептов. Bash-прототип в `burn/` — эталон поведения, пока C-версия не догонит его. |
+| **burn на C** | Один бинарник, только libc + libzstd: рецепты разбираются без запуска bash, tar, zstd, sha256 и ELF работают внутри процесса, установка атомарна. bash остаётся для команд сборки внутри рецептов. |
 
 ## burn
 
-C-версия и её устройство — в репозитории [burn](https://github.com/vovawees/burn) (`docs/DESIGN.md`). Ниже — bash-прототип,
-который остаётся эталоном поведения до паритета:
+Пакетный менеджер живёт в своём репозитории: [burn](https://github.com/vovawees/burn), устройство — в его
+`docs/DESIGN.md`. CleanLinux берёт его как любой другой пакет: рецепт `burn` в CleanLinux-Recipes собирает
+релиз (tarball + sha256), `base` зависит от него. Bootstrap собирает для хоста тот же релиз
+(`bootstrap/host-burn.sh`, нужны компилятор C и заголовки libzstd); `BURN_BIN=путь` подставляет другую сборку.
 
-```
-burn/burn             точка входа, разбор опций
-burn/lib/config.sh     burn.conf, профиль, флаги компилятора, тулчейн (native/cross)
-burn/lib/recipe.sh     загрузка рецептов, features, условные зависимости, lint
-burn/lib/fetch.sh      скачивание (зеркала gnu://, kernel://), sha256, распаковка, патчи
-burn/lib/build.sh      сборка в DESTDIR, чистка, strip, упаковка в .tar.zst, BUILDID
-burn/lib/db.sh         база установленных пакетов, установка/удаление, конфликты, история
-burn/lib/deps.sh       порядок зависимостей
-burn/lib/update.sh     sync, plan, update, ABI-follow-up, doctor
-burn/lib/cli.sh        команды
-burn/buildtypes/*.sh   autotools, meson, cmake, make, cargo, python, custom, meta
-burn/hooks/            хуки (снимок btrfs перед обновлением)
-```
+C-версия писалась по bash-прототипу и сверялась с ним команда за командой; прототип остался в истории
+CleanLinux, тег [`burn-prototype`](https://github.com/vovawees/CleanLinux/tree/burn-prototype/burn) — с ним
+сравнивает `make proto` в репозитории burn.
 
 ### Конвейер сборки
 
@@ -110,11 +102,13 @@ burn/hooks/            хуки (снимок btrfs перед обновлен�
 
 | Путь | Что там |
 |---|---|
-| `/etc/burn/burn.conf` | настройки (см. `burn/burn.conf`) |
+| `/etc/burn/burn.conf` | настройки (пример — `/usr/share/burn/burn.conf.example`) |
 | `/etc/burn/package.features` | features для отдельных пакетов |
 | `/etc/burn/hold` | замороженные пакеты |
 | `/etc/burn/profiles/` | свои профили (ищутся первыми) |
 | `/etc/burn/hooks/{pre,post}-update.d/` | хуки обновления |
+| `/usr/share/burn/profiles/` | профили железа из этого репозитория |
+| `/.snapshots/burn-*` | read-only снимки btrfs перед обновлениями |
 | `/var/lib/burn/installed/<pkg>/` | `meta`, `files`, `provides-so`, `needs-so`, `preserved` |
 | `/var/lib/burn/state/history` | журнал транзакций |
 | `/var/lib/burn/repos/` | git-клоны репозиториев рецептов |

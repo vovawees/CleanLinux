@@ -36,7 +36,7 @@ bootstrap на чужом хосте.
 
 | Репозиторий | Что это | Статус |
 |---|---|---|
-| [burn](https://github.com/vovawees/burn) | пакетный менеджер на C (C17, только libc + libzstd): рецепты, сборка, установка, rolling+++ | в работе; bash-прототип в `burn/` — эталон поведения до паритета |
+| [burn](https://github.com/vovawees/burn) | пакетный менеджер на C (C17, только libc + libzstd): рецепты, сборка, установка, rolling+++ | используется: bootstrap собирает его из релиза, пакет `burn` в `base`; bash-прототип — тег `burn-prototype` |
 | `cleanlinux-boot` (рабочее название) | сервисы dinit для загрузки и помощник на C: ранние ФС, coldplug модулей через libkmod, hostname, seed, часы | этап 1 |
 | `cleanlinux-install` (рабочее название) | установщик на C: разметка, `burn -r /mnt install base`, fstab, загрузчик, пользователь | этап 1 |
 | CleanLinux | документация, профили железа, bootstrap, образы, CI | — |
@@ -83,7 +83,7 @@ bootstrap на чужом хосте.
 
 Цель: CleanLinux обновляет и пересобирает сама себя, без хоста.
 
-- [ ] burn внутри системы: git, curl, ca-certificates, openssl; рецепт `burn` из релизов его репозитория — `burn sync && burn update` работают на устройстве
+- [ ] burn внутри системы: пакет `burn` уже в `base`; нужны git, curl, ca-certificates, openssl — тогда `burn sync && burn update` работают на устройстве
 - [ ] `base-devel` для нативной сборки любого рецепта: perl, python, meson, ninja, cmake, flex, bc, elfutils (libelf для objtool ядра), autoconf/automake/libtool, gettext
 - [ ] ускорители сборки внутри системы: ccache, mold, pahole (BTF для sched_ext)
 - [ ] нативная пересборка всей базы на устройстве даёт те же пакеты, что и cross-сборка (воспроизводимость)
@@ -144,8 +144,8 @@ bootstrap на чужом хосте.
 - [x] пакеты: tar + zstd внутри процесса; атомарная установка (временный файл + `rename`, запись базы одним `RENAME_EXCHANGE`), пути только внутри корня (`openat2` + `RESOLVE_IN_ROOT`), защита конфигов, preserved libs; триггеры (`ldconfig`, `depmod`) — один раз на транзакцию; `install <файл>`, `remove`, `rollback`
 - [x] сборка: параллельная загрузка, sha256 внутри процесса, типы сборки на C (autotools, meson, cmake, make, cargo, python, meta, custom); bash только для функций рецепта (`do_*`, `*_extra`, `post_install`, внутри них `bt_*` снова вызывает burn); разбор ELF на C (SONAME, NEEDED) вместо `readelf` на каждый файл, strip пачками; `build`, `unpack`, `install <рецепт>` с зависимостями и ABI-пересборкой — пакеты байт в байт как у прототипа
 - [x] rolling+++: `sync`, `plan` (порядок зависимостей без bash), `update`, хуки — сверены с прототипом на тестовом репозитории рецептов
-- [x] снимок btrfs перед `update` через ioctl, без btrfs-progs (`SNAPSHOTS=5`, `burn snapshot`) — проверен на настоящей btrfs в виртуальной машине; хук `burn/hooks/pre-update.d/10-btrfs-snapshot` уходит вместе с прототипом
-- [ ] переход: bootstrap, тесты и образ используют C-burn, bash-прототип удаляется из CleanLinux, рецепт `burn` в CleanLinux-Recipes собирается из релизов
+- [x] снимок btrfs перед `update` через ioctl, без btrfs-progs (`SNAPSHOTS=5`, `burn snapshot`) — проверен на настоящей btrfs в виртуальной машине; заменил хук прототипа `10-btrfs-snapshot`
+- [x] переход: bootstrap (`bootstrap/host-burn.sh` собирает burn из релиза, закреплённого рецептом), тесты и образ используют C-burn; рецепт `burn` в CleanLinux-Recipes собирается из релизов и входит в `base`; bash-прототип удалён из CleanLinux и остался тегом `burn-prototype` — эталоном для `make proto`. Настоящая base, cross-собранная C-burn, совпадает с пакетами прототипа байт в байт
 - [ ] дальше: split-пакеты (например, `gcc-libs` отдельно от компилятора); сборка от непривилегированного пользователя с изоляцией (namespaces, без сети); канал `security` и подписи; бинарный кеш *своих* сборок между своими устройствами; PGO и опциональный Clang; HTTP/2 через libcurl как опция; SHA-NI
 
 ## Не входит в базу
