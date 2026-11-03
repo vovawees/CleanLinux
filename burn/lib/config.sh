@@ -204,6 +204,8 @@ ccache_setup() {
 # Per-recipe CFLAGS/CXXFLAGS/LDFLAGS (needs recipe + toolchain_env).
 flags_for_recipe() {
 	CFLAGS="$OPT_FLAGS $CPU_CFLAGS"
+	# options=(o3): hot loops (compressors, codecs) that upstream tunes for -O3
+	if has_option o3; then CFLAGS=${CFLAGS/-O2/-O3}; fi
 	if ! has_option '!hardening'; then
 		CFLAGS+=" $HARDENING_FLAGS"
 		if [[ $CARCH == x86_64 ]]; then CFLAGS+=' -fcf-protection'; fi

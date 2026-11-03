@@ -490,7 +490,7 @@ lint_one() (
 		[[ $f =~ ^[+-]?[a-z0-9][a-z0-9_-]*$ ]] || e+=("bad feature '$f'")
 	done
 	for f in "${options[@]}"; do
-		in_list "$f" '!lto' '!strip' '!hardening' '!prune' '!linker' staticlibs emptydirs || e+=("unknown option '$f'")
+		in_list "$f" '!lto' '!strip' '!hardening' '!prune' '!linker' staticlibs emptydirs o3 || e+=("unknown option '$f'")
 	done
 	# the recipe repository holds instructions only: no binaries, no vendored tarballs
 	while IFS= read -r -d '' f; do
