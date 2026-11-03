@@ -235,8 +235,12 @@ cmd_query() {
 			;;
 		*)
 			in_list "$2" "${RECIPE_VARS[@]}" || die "unknown recipe variable: $2"
-			local -n _qv=$2
-			if ((${#_qv[@]})); then printf '%s\n' "${_qv[@]}"; fi
+			if [[ $(declare -p "$2" 2>/dev/null) == "declare -a"* ]]; then
+				local -n _qv=$2
+				if ((${#_qv[@]})); then printf '%s\n' "${_qv[@]}"; fi
+			else
+				printf '%s\n' "${!2:-}"
+			fi
 			;;
 	esac
 }
