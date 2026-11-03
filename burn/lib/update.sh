@@ -148,21 +148,41 @@ abi_followup() {
 	preserved_cleanup
 }
 
-# Delete preserved libraries that nothing needs any more.
+# Delete preserved libraries that nothing needs any more. A needed soname keeps the file its
+# symlink points to as well.
 preserved_cleanup() {
-	local p f needed
+	local p f t needed changed
+	local -a out=()
+	local -A keep=()
 	needed=$(cat "$DB_DIR"/*/needs-so 2>/dev/null | LC_ALL=C sort -u)
 	for p in $(db_list); do
 		[[ -s $DB_DIR/$p/preserved ]] || continue
 		while IFS= read -r f; do
-			if grep -qxF -- "${f##*/}" <<<"$needed"; then
-				printf '%s\n' "$f"
+			if [[ -n $f ]] && grep -qxF -- "${f##*/}" <<<"$needed"; then
+				keep[$f]=1
+				if [[ -L $R/$f ]]; then
+					t=$(readlink "$R/$f")
+					if [[ $t == /* ]]; then keep[${t#/}]=1; else keep[${f%/*}/$t]=1; fi
+				fi
+			fi
+		done <"$DB_DIR/$p/preserved"
+	done
+	for p in $(db_list); do
+		[[ -s $DB_DIR/$p/preserved ]] || continue
+		changed=0 out=()
+		while IFS= read -r f; do
+			if [[ -z $f ]]; then
+				changed=1
+			elif [[ -n ${keep[$f]:-} ]]; then
+				out+=("$f")
 			else
 				rm -f "$R/$f"
 				msg2 "removed preserved /$f"
+				changed=1
 			fi
-		done <"$DB_DIR/$p/preserved" >"$DB_DIR/$p/preserved.new"
-		mv -f "$DB_DIR/$p/preserved.new" "$DB_DIR/$p/preserved"
+		done <"$DB_DIR/$p/preserved"
+		((changed)) || continue
+		if ((${#out[@]})); then printf '%s\n' "${out[@]}"; fi >"$DB_DIR/$p/preserved"
 	done
 	return 0
 }

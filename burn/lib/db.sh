@@ -90,7 +90,9 @@ pkg_install_file() {
 	done
 	if [[ -n $old ]]; then
 		remove_obsolete "$name" "$DB_DIR/$name/files" "$tmp/.BURN/files" "$tmp/.BURN/preserved"
-		[[ -f $DB_DIR/$name/preserved ]] && cat "$DB_DIR/$name/preserved" >>"$tmp/.BURN/preserved"
+		if [[ -f $DB_DIR/$name/preserved ]]; then # still preserved, unless this version ships them again
+			grep -vxF -f "$tmp/.BURN/files" "$DB_DIR/$name/preserved" >>"$tmp/.BURN/preserved" || true
+		fi
 		LC_ALL=C comm -23 "$DB_DIR/$name/provides-so" "$tmp/.BURN/provides-so" >>"$WORK_DIR/.lost-sonames"
 	fi
 	mkdir -p "$DB_DIR"
@@ -196,6 +198,11 @@ pkg_remove() {
 			rm -f "$R/$f"
 		fi
 	done <"$DB_DIR/$name/files"
+	if [[ -f $DB_DIR/$name/preserved ]]; then # the old libraries kept for others go with it
+		while IFS= read -r f; do
+			if [[ -n $f ]]; then rm -f "$R/$f"; fi
+		done <"$DB_DIR/$name/preserved"
+	fi
 	sed -n '/\/$/p' "$DB_DIR/$name/files" | LC_ALL=C sort -r | while IFS= read -r f; do
 		rmdir "$R/$f" 2>/dev/null || true
 	done

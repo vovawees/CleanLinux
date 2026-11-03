@@ -325,6 +325,7 @@ cmd_install() {
 			done
 		fi
 	fi
+	preserved_cleanup
 	abi_followup
 }
 
@@ -336,6 +337,7 @@ cmd_remove() {
 	confirm "Remove $*?" || die "aborted, nothing changed"
 	db_order_set "$@"
 	for ((i = ${#DEP_ORDER[@]} - 1; i >= 0; i--)); do pkg_remove "${DEP_ORDER[$i]}"; done
+	preserved_cleanup
 }
 
 cmd_list() {
@@ -426,6 +428,7 @@ cmd_rollback() {
 	pkg_install_file "$f"
 	TXN_OP=''
 	cmd_hold "$1"
+	preserved_cleanup
 	abi_followup
 	msg "$1 rolled back and held; 'burn unhold $1' lets updates touch it again"
 }
