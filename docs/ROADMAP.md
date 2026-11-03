@@ -53,7 +53,7 @@
 Цель: образ, который загружается на обычном ПК и в QEMU до входа в консоль и ставится на диск одной командой.
 Сначала x86_64 + UEFI, затем aarch64.
 
-- [ ] kmod (`depmod`, `modprobe`) и триггер burn: `modules.dep` пересобирается при каждой установке ядра или модулей
+- [x] kmod (`depmod`, `modprobe`) и триггер burn: `modules.dep` пересобирается при каждой установке ядра или модулей
 - [ ] сервисы dinit для загрузки: `/proc` `/sys` `/dev` `/run`, fsck и `mount -a`, hostname, `sysctl --system`, загрузка модулей, seed случайных чисел, часы, getty на tty и на последовательном порту, корректное выключение
 - [ ] вход в систему: Linux-PAM, shadow (`passwd`, `useradd`), `login` и `su` из util-linux
 - [ ] устройства: eudev (udev без systemd: правила, hwdb, `libudev` — без него не работают libinput, Mesa и любой DE)

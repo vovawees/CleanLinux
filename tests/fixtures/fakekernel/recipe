@@ -1,0 +1,17 @@
+# Test fixture: a kernel with an empty module tree (exercises the depmod trigger).
+name=fakekernel
+version=1.0
+release=1
+summary="Test kernel module tree"
+homepage=https://example.org/fakekernel
+license=(MIT)
+category=extra
+build_type=custom
+source=(modules.order)
+sha256=(SKIP)
+
+do_install() {
+	local d=$DESTDIR/usr/lib/modules/$version-test
+	install -Dm644 "$FILES/modules.order" "$d/modules.order"
+	: >"$d/modules.builtin"
+}

@@ -140,7 +140,42 @@ run_triggers() {
 	if [[ $(id -u) == 0 ]] && have ldconfig && grep -q '^usr/lib/[^/]*\.so' "$1"; then
 		if [[ -z $R ]]; then ldconfig; elif [[ -f $R/etc/ld.so.conf ]]; then ldconfig -r "$R" 2>/dev/null || true; fi
 	fi
+	if grep -q '^usr/lib/modules/.' "$1"; then modules_trigger; fi
 	return 0
+}
+
+# Kernel modules changed (a kernel or a module package was installed, upgraded or removed):
+# depmod for every installed kernel, and the depmod output of kernels that are gone is removed.
+modules_trigger() {
+	local dir f
+	for dir in "$R"/usr/lib/modules/*/; do
+		dir=${dir%/}
+		if [[ -f $dir/modules.order ]]; then
+			depmod_run "${dir##*/}"
+		else
+			for f in modules.alias modules.alias.bin modules.builtin.alias.bin modules.builtin.bin modules.dep \
+				modules.dep.bin modules.devname modules.softdep modules.symbols modules.symbols.bin modules.weakdep; do
+				rm -f "$dir/$f"
+			done
+			rmdir "$dir" 2>/dev/null || true
+		fi
+	done
+	return 0
+}
+
+# depmod KVER with the root's own kmod when it can run here, otherwise the host's (the index
+# files are portable); without either, the boot service generates them at the next boot.
+depmod_run() {
+	local kver=$1 host
+	host=$(PATH=$PATH:/usr/sbin:/sbin command -v depmod) || host=''
+	if [[ -z $R ]]; then
+		if [[ -n $host ]] && "$host" "$kver"; then return 0; fi
+	elif [[ -e $R/usr/bin/depmod ]] && root_run depmod -b "$R" "$kver" 2>/dev/null; then
+		return 0
+	elif [[ -n $host ]] && "$host" -b "$R" "$kver" 2>/dev/null; then
+		return 0
+	fi
+	warn "depmod could not run: modules.dep for kernel $kver is generated at the next boot"
 }
 
 pkg_remove() {
@@ -165,7 +200,12 @@ pkg_remove() {
 		rmdir "$R/$f" 2>/dev/null || true
 	done
 	history_add remove "$name" "$(db_get "$name" version)-$(db_get "$name" release)" - ""
-	rm -rf "${DB_DIR:?}/$name"
+	if grep -q '^usr/lib/modules/.' "$DB_DIR/$name/files"; then
+		rm -rf "${DB_DIR:?}/$name"
+		modules_trigger
+	else
+		rm -rf "${DB_DIR:?}/$name"
+	fi
 }
 
 # Order installed packages so that dependencies come first (uses installed metadata).

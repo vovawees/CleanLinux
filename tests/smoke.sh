@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Smoke test with real recipes: build and install compression libraries into a scratch root
-# on the host toolchain, use them, query the database, remove them again.
+# Smoke test with real recipes: build and install compression libraries and kmod into a scratch
+# root on the host toolchain, use them, query the database, remove them again.
 # Usage: tests/smoke.sh [RECIPES_DIR]  (default: ../CleanLinux-Recipes/packages)
 # shellcheck source=tests/lib.sh
 . "${BASH_SOURCE[0]%/*}/lib.sh"
@@ -44,6 +44,20 @@ sum=$(sha256sum <"$pkg")
 
 step "a feature change makes the plan rebuild zstd"
 expect 'zstd.*rebuild' b -f -lz4 plan
+
+step "kmod, and the depmod trigger on kernel install, upgrade and removal"
+b install kmod
+"$ROOTFS/usr/bin/kmod" --version
+cp -r "$TESTS/fixtures" "$T/fixtures"
+k() { b -R "$T/fixtures" "$@"; }
+k install fakekernel
+[[ -f $ROOTFS/usr/lib/modules/1.0-test/modules.dep ]] || fail "depmod did not run for kernel 1.0-test"
+sed -i 's/^version=1.0/version=2.0/' "$T/fixtures/fakekernel/recipe"
+k install fakekernel
+[[ -f $ROOTFS/usr/lib/modules/2.0-test/modules.dep ]] || fail "depmod did not run for kernel 2.0-test"
+[[ ! -e $ROOTFS/usr/lib/modules/1.0-test ]] || fail "the module directory of the old kernel was left behind"
+k remove fakekernel kmod
+[[ ! -e $ROOTFS/usr/lib/modules/2.0-test ]] || fail "module directory left after removing the kernel"
 
 step "dependency protection and removal"
 if b remove lz4 2>/dev/null; then fail "removing lz4 must fail while zstd needs it"; fi

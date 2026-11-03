@@ -54,3 +54,17 @@ run_fn() {
 	if declare -F "$1" >/dev/null; then "$1"; fi
 	return 0
 }
+
+# root_run PROG [ARGS]: run /usr/bin/PROG of a staging root ($R) on this machine. A root with
+# its own glibc is run through its own loader (its programs may need a newer glibc than the host).
+root_run() {
+	local prog=$1 bin ld
+	shift
+	bin=$(readlink -f "$R/usr/bin/$prog") && [[ -x $bin ]] || return 127
+	for ld in "$R"/usr/lib/ld-linux*.so.[0-9]; do
+		"$ld" --library-path "$R/usr/lib" --argv0 "$prog" "$bin" "$@"
+		return
+	done
+	# run through the link: multi-call programs (kmod) dispatch on their argv[0]
+	LD_LIBRARY_PATH=$R/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} "$R/usr/bin/$prog" "$@"
+}
