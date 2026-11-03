@@ -89,7 +89,7 @@ burn profile show      # итоговые CFLAGS, features, драйверы
 ## Структура
 
 ```
-burn/        пакетный менеджер (bash): burn, lib/, buildtypes/, hooks/, burn.conf
+burn/        bash-прототип пакетного менеджера (эталон до паритета C-версии: github.com/vovawees/burn)
 profiles/     профили железа: base, generic-*, native, devices/*
 bootstrap/    сборка системы с нуля: тулчейн → базовая система → образ
 tests/        smoke-тест на настоящих рецептах и тест rolling+++
