@@ -5,4 +5,4 @@ CARCH=aarch64
 # Armv9 cores; SVE2 and MTE are left out: Snapdragon firmware does not reliably expose them
 CPU_FLAGS="-march=armv8.6-a+fp16fml -mtune=cortex-a715"
 VIDEO_CARDS=freedreno
-PROFILE_FEATURES+=" gaming handheld battery"
+PROFILE_FEATURES+=" handheld battery"

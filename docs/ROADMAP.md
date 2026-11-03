@@ -44,7 +44,7 @@
 
 - [x] [`docs/SCOPE.md`](SCOPE.md): слои, правило «база или сверху», что база обещает сборкам
 - [ ] README обоих репозиториев и ARCHITECTURE: CleanLinux — база для сборок, а не готовый дистрибутив «под игры»
-- [ ] профили описывают только железо: без feature `gaming`; features программного стека (`wayland`, `x11`, `pipewire`, …) выбирают сборки, а не профили
+- [x] профили описывают только железо: без feature `gaming`; features программного стека (`wayland`, `x11`, `pipewire`, …) выбирают сборки, а не профили
 - [ ] умолчания без вкусовщины: в базе остаются общие и аппаратные настройки (zswap, BBR, `vm.max_map_count` — как в Arch и Fedora), игровые твики (`kernel.split_lock_mitigate=0` и т.п.) уходят в сборки
 - [ ] категории рецептов по слоям (`core` `kernel` `firmware` `drivers` `platform` `devel` `meta`) и их проверка в lint
 

@@ -5,4 +5,4 @@ CARCH=aarch64
 # big.LITTLE tuning plus the Cortex-A53 errata workarounds
 CPU_FLAGS="-mcpu=cortex-a73.cortex-a53 -mfix-cortex-a53-835769 -mfix-cortex-a53-843419"
 VIDEO_CARDS=freedreno
-PROFILE_FEATURES+=" gaming handheld battery"
+PROFILE_FEATURES+=" handheld battery"
