@@ -581,7 +581,7 @@ profile_list() {
 }
 
 profile_detect() {
-	local arch cpu=unknown gpu='' model='' suggestion=native
+	local arch cpu=unknown gpu='' model='' ids='' suggestion=native
 	arch=$(uname -m)
 	if have gcc; then
 		if [[ $arch == aarch64 ]]; then
@@ -592,11 +592,20 @@ profile_detect() {
 	fi
 	gpu=$(detect_video_cards)
 	model=$({ cat /sys/firmware/devicetree/base/model || cat /sys/class/dmi/id/product_name; } 2>/dev/null | tr -d '\0' || true)
-	case $model in
+	# Lenovo keeps the model name in product_version, ASUS in board_name
+	ids=$(cat /sys/class/dmi/id/product_version /sys/class/dmi/id/board_name 2>/dev/null | paste -sd' ' - || true)
+	case "$model $ids" in
 		*Jupiter* | *Galileo*) suggestion=steam-deck ;;
+		*RC73XA*) suggestion=rog-xbox-ally-x ;;
 		*"ROG Ally"* | *RC71L* | *RC72L*) suggestion=rog-ally ;;
+		*"Legion Go S"*) suggestion=legion-go-s ;;
+		*"Legion Go"*) suggestion=legion-go ;;
+		*Claw*AI+*) suggestion=msi-claw-ai-plus ;;
+		*"Claw A1M"*) suggestion=msi-claw ;;
 		*X540YA*) suggestion=asus-x540ya ;;
 		*"Raspberry Pi 5"*) suggestion=raspberry-pi-5 ;;
+		*"Retroid Pocket 5"* | *"Retroid Pocket Mini"*) suggestion=retroid-pocket-5 ;;
+		*"Odin 2"* | *Odin2*) suggestion=ayn-odin2 ;;
 		*[Mm]angmi*) suggestion=mangmi-air-x ;;
 		*RG353* | *RG503* | *RK3566* | *rk3566*) suggestion=rk3566-handheld ;;
 	esac
