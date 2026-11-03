@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# broom - the CleanLinux package manager (bash prototype)
+# SPDX-License-Identifier: MIT
+set -o errexit -o nounset -o pipefail
+shopt -s nullglob extglob
+
+BROOM_VERSION=0.1.0
+BROOM_SELF=$(readlink -f "${BASH_SOURCE[0]}")
+BROOM_HOME=${BROOM_HOME:-${BROOM_SELF%/*}}
+
+for _lib in "$BROOM_HOME"/lib/*.sh; do
+	# shellcheck source=/dev/null
+	. "$_lib"
+done
+unset _lib
+
+broom_main "$@"
