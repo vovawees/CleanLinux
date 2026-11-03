@@ -10,6 +10,8 @@ meson_list() {
 	printf '[%s]' "${out%, }"
 }
 
+# Both "pkg-config" (meson >= 1.3) and the older "pkgconfig" key are written; meson accepts the
+# pair as long as the values match.
 meson_cross_file() {
 	local f=$WORK/cross.ini fam=$CARCH
 	case $CARCH in arm*) fam=arm ;; esac
@@ -22,6 +24,7 @@ nm = '$NM'
 strip = '$STRIP'
 objcopy = '$OBJCOPY'
 pkg-config = '${PKG_CONFIG:-pkg-config}'
+pkgconfig = '${PKG_CONFIG:-pkg-config}'
 
 [built-in options]
 c_args = $(meson_list "$CFLAGS")
