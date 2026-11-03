@@ -1,6 +1,0 @@
-NAME="Clean Linux"
-PRETTY_NAME="Clean Linux (rolling)"
-ID=clean-linux
-BUILD_ID=rolling
-ANSI_COLOR="1;32"
-HOME_URL="https://github.com/vovawees/Clean-Linux"
