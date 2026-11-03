@@ -20,6 +20,7 @@ config_defaults() {
 	LOCALES='en ru'
 	KEEP_DOCS=0 KEEP_INFO=0 KEEP_MAN=1
 	STRIP_BINARIES=1 LTO=1 CHECK=0 HOST_DEPS=0
+	CCACHE=0 CCACHE_SIZE=5G LINKER=''
 	MESON_AUTO_FEATURES=disabled
 	OPT_FLAGS='-O2 -pipe'
 	HARDENING_FLAGS='-fstack-clash-protection -Wp,-D_FORTIFY_SOURCE=3'
@@ -158,6 +159,48 @@ ldflags_probe() {
 	printf '%s' "$out"
 }
 
+# LINKER=mold|lld|bfd: " -fuse-ld=..." when the compiler can use it. GCC < 12 does not know
+# mold: its libexec/mold/ld wrapper (-B) does the same.
+linker_flags() {
+	[[ -n $LINKER ]] && ! has_option '!linker' || return 0
+	local t flag='' f bin
+	local -a sys=()
+	if ((CROSS)); then sys=("--sysroot=$SYSROOT"); fi
+	t=$(mktemp -d)
+	printf '%s\n' 'int main(void) { return 0; }' >"$t/t.c"
+	for f in "-fuse-ld=$LINKER" mold-libexec; do
+		if [[ $f == mold-libexec ]]; then
+			bin=''
+			if [[ $LINKER == mold ]]; then bin=$(readlink -f "$(command -v mold)") || bin=""; fi
+			f=-B$(readlink -m "${bin%/*}/../libexec/mold")
+			[[ -n $bin && -x ${f#-B}/ld ]] || break
+		fi
+		if "$CC" "${sys[@]}" "$f" "$t/t.c" -o "$t/t" >/dev/null 2>&1; then
+			flag=" $f"
+			break
+		fi
+	done
+	rm -rf "$t"
+	[[ -n $flag ]] || warn "LINKER=$LINKER does not work with $CC: using its default linker"
+	printf '%s' "$flag"
+}
+
+# CCACHE=1: compiler names resolve to ccache through a masquerade directory first in PATH
+ccache_setup() {
+	local c cc bin=$CACHE_DIR/ccache/bin
+	cc=$(command -v ccache) || {
+		warn "CCACHE=1, but ccache is not installed"
+		return 0
+	}
+	mkdir -p "$bin"
+	for c in "$CC" "$CXX" cc c++ gcc g++; do
+		[[ $c == */* ]] && continue
+		[[ -L $bin/$c ]] || ln -sfn "$cc" "$bin/$c"
+	done
+	export CCACHE_DIR=${CCACHE_DIR:-$CACHE_DIR/ccache} CCACHE_BASEDIR=$WORK_DIR CCACHE_MAXSIZE=$CCACHE_SIZE
+	export PATH=$bin:$PATH
+}
+
 # Per-recipe CFLAGS/CXXFLAGS/LDFLAGS (needs recipe + toolchain_env).
 flags_for_recipe() {
 	CFLAGS="$OPT_FLAGS $CPU_CFLAGS"
@@ -171,7 +214,7 @@ flags_for_recipe() {
 		CFLAGS=${CFLAGS/_FORTIFY_SOURCE=3/_FORTIFY_SOURCE=2}
 	fi
 	if [[ -n $EXTRA_CFLAGS ]]; then CFLAGS+=" $EXTRA_CFLAGS"; fi
-	LDFLAGS="$(ldflags_probe)${EXTRA_LDFLAGS:+ $EXTRA_LDFLAGS}"
+	LDFLAGS="$(ldflags_probe)$(linker_flags)${EXTRA_LDFLAGS:+ $EXTRA_LDFLAGS}"
 	LTO_ON=0
 	if ((LTO)) && ! has_option '!lto'; then
 		LTO_ON=1

@@ -69,6 +69,7 @@ recipe_env() {
 	toolchain_env
 	flags_for_recipe
 	BUILDID=$(recipe_buildid)
+	if ((CCACHE)); then ccache_setup; fi
 }
 
 # recipe_state NAME -> "version-release rid" (subshell; empty output if the recipe is broken)
