@@ -267,8 +267,9 @@ cmd_unpack() {
 		features_resolve
 		WORK=${dest:-$WORK_DIR/$name}
 		WORK=$(readlink -m "$WORK")
-		LOG=$WORK/unpack.log
-		mkdir -p "$WORK"
+		# same layout as a real build, so do_prepare may use $BUILD and $DESTDIR
+		BUILD=$WORK/build DESTDIR=$WORK/dest LOG=$WORK/unpack.log
+		mkdir -p "$WORK" "$BUILD"
 		: >"$LOG"
 		msg "Unpacking $name $version into $WORK"
 		fetch_sources
