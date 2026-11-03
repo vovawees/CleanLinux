@@ -1,0 +1,23 @@
+# shellcheck disable=SC2086
+# Test fixture: a library whose soname follows the major version.
+name=libfoo
+version=1.0
+release=1
+summary="Test library (soname = major version)"
+homepage=https://example.org/libfoo
+license=(MIT)
+build_type=custom
+source=(foo.c foo.h)
+sha256=(SKIP SKIP)
+
+do_build() {
+	local so=${version%%.*}
+	$CC $CFLAGS -fPIC -shared -DFOO_MAJOR="$so" -Wl,-soname,libfoo.so.$so $LDFLAGS -o libfoo.so.$so "$FILES/foo.c"
+}
+
+do_install() {
+	local so=${version%%.*}
+	install -Dm755 libfoo.so.$so "$DESTDIR/usr/lib/libfoo.so.$so"
+	ln -s libfoo.so.$so "$DESTDIR/usr/lib/libfoo.so"
+	install -Dm644 "$FILES/foo.h" "$DESTDIR/usr/include/foo.h"
+}

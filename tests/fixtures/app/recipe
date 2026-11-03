@@ -1,0 +1,15 @@
+# shellcheck disable=SC2086
+# Test fixture: a program linked against libfoo.
+name=app
+version=1.0
+release=1
+summary="Test program using libfoo"
+homepage=https://example.org/app
+license=(MIT)
+depends=(libfoo)
+build_type=custom
+source=(app.c)
+sha256=(SKIP)
+
+do_build() { $CC $CFLAGS $LDFLAGS -o app "$FILES/app.c" -lfoo; }
+do_install() { install -Dm755 app "$DESTDIR/usr/bin/app"; }
