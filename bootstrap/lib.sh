@@ -41,11 +41,15 @@ step() {
 
 # unpack PKG: sources from the recipe (checksums verified, patches applied); prints the dir
 unpack() {
-	if [[ ! -f $SRCDIR/$1/.dir ]]; then
-		broom unpack "$1" "$SRCDIR/$1" >"$SRCDIR/$1.dir"
-		mv -f "$SRCDIR/$1.dir" "$SRCDIR/$1/.dir"
+	local d=''
+	[[ -f $SRCDIR/$1/.dir ]] && d=$(<"$SRCDIR/$1/.dir")
+	if [[ -z $d || ! -d $d ]]; then
+		rm -rf "${SRCDIR:?}/$1"
+		d=$(broom unpack "$1" "$SRCDIR/$1") || die "unpacking $1 failed, see $SRCDIR/$1/unpack.log"
+		[[ -d $d ]] || die "unpacking $1 printed no source directory"
+		printf '%s\n' "$d" >"$SRCDIR/$1/.dir"
 	fi
-	cat "$SRCDIR/$1/.dir"
+	printf '%s\n' "$d"
 }
 
 host_check() {

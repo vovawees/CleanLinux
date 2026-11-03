@@ -11,7 +11,7 @@
 # Usage: bootstrap/bootstrap.sh [--arch x86_64|aarch64] [--profile NAME] [--work DIR]
 #                               [--recipes DIR] [-j N] [-v] [stage...]
 set -euo pipefail
-shopt -s nullglob
+shopt -s nullglob inherit_errexit
 
 HERE=$(cd "${BASH_SOURCE[0]%/*}" && pwd)
 TOP=$(cd "$HERE/.." && pwd)
