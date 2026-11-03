@@ -1,6 +1,9 @@
 # Архитектура CleanLinux
 
-CleanLinux — дистрибутив из трёх частей:
+CleanLinux — база, как Arch: система, драйверы и оптимизация под железо (слои core, hardware и platform).
+DE, WM и приложения ставятся поверх сборками — что куда относится, описано в [SCOPE.md](SCOPE.md).
+
+База состоит из трёх частей:
 
 ```
 CleanLinux-Recipes  ──►  burn  ──►  система на устройстве
@@ -19,11 +22,11 @@ CleanLinux-Recipes  ──►  burn  ──►  система на устрой
 
 | Решение | Почему |
 |---|---|
-| **glibc**, не musl | Steam, Proton, Wine, проприетарные драйверы, AppImage/Flatpak и почти любой бинарный софт рассчитаны на glibc. Быстрый malloc и полная поддержка локалей — бонус. |
+| **glibc**, не musl | Проприетарные драйверы, Flatpak/AppImage и почти любой бинарный софт (в том числе тот, что ставят сборки) рассчитаны на glibc. Быстрый malloc и полная поддержка локалей — бонус. |
 | **GCC 16 + binutils** | Основной тулчейн для обеих архитектур; лучшая поддержка `-march`/`-mcpu` под конкретные ядра (znver4, cortex-a73.cortex-a53…). Clang/LLVM появится как опция (нужен и для Mesa). |
 | **Merged `/usr`** | `/bin`, `/sbin`, `/lib`, `/lib64` — симлинки в `/usr`. Один каталог с программами, совместимость с бинарниками из других дистрибутивов (`/lib64/ld-linux-x86-64.so.2`, `/lib/ld-linux-aarch64.so.1`). |
-| **dinit** | Маленький и быстрый init с зависимостями и супервизией сервисов, без тяжёлого стека systemd. Важно для консолей с 2–4 ГБ RAM. |
-| **Wayland-first** | features по умолчанию: `wayland vulkan opengl pipewire`, `-x11 -pulseaudio`. X11 включается одной строкой. |
+| **dinit** | Маленький и быстрый init с зависимостями и супервизией сервисов, без тяжёлого стека systemd. Важно для слабых устройств с 2–4 ГБ RAM. |
+| **Стек выбирает сборка** | Wayland или X11, PipeWire или PulseAudio — features программного стека задаёт сборка (или пользователь), а не база и не профиль железа. Рецепты по умолчанию следуют upstream. |
 | **zlib-ng, zstd** | zlib-ng — та же ABI, что у zlib, но с SIMD на x86_64 и arm64. zstd — для пакетов (`.tar.zst`) и сжатия btrfs. |
 | **btrfs + zstd** (рекомендация) | Снимки перед каждым обновлением (`hooks/pre-update.d/10-btrfs-snapshot`), прозрачное сжатие — меньше места на маленьких eMMC/SD. |
 | **Свой triple** | `x86_64-cleanlinux-linux-gnu`, `aarch64-cleanlinux-linux-gnu` — тулчейн никогда не перепутает систему с хостом. |
@@ -124,10 +127,10 @@ PROFILE_DESC="Mangmi Air X: Snapdragon 662 (SM6115, 4x Cortex-A73 + 4x Cortex-A5
 CARCH=aarch64
 CPU_FLAGS="-mcpu=cortex-a73.cortex-a53 -mfix-cortex-a53-835769 -mfix-cortex-a53-843419"
 VIDEO_CARDS=freedreno
-PROFILE_FEATURES+=" gaming handheld battery"
+PROFILE_FEATURES+=" handheld battery"
 ```
 
-Переменные: `CARCH`, `CPU_FLAGS`, `VIDEO_CARDS`, `PROFILE_FEATURES`, `KERNEL_CMDLINE`, `KERNEL_CONFIG` (фрагмент конфигурации ядра). Профиль `native` определяет CPU и GPU сам (`-march=native`/`-mcpu=native`, видеокарты по `/sys`), `burn profile detect` подбирает готовый профиль устройства или печатает заготовку для `/etc/burn/profiles/`.
+Переменные: `CARCH`, `CPU_FLAGS`, `VIDEO_CARDS`, `PROFILE_FEATURES`, `KERNEL_CMDLINE`, `KERNEL_CONFIG` (фрагмент конфигурации ядра). Профиль описывает только железо: в `PROFILE_FEATURES` — аппаратные features (`handheld`, `battery`, …), а не программный стек. Профиль `native` определяет CPU и GPU сам (`-march=native`/`-mcpu=native`, видеокарты по `/sys`), `burn profile detect` подбирает готовый профиль устройства или печатает заготовку для `/etc/burn/profiles/`.
 
 ## Bootstrap
 

@@ -1,30 +1,48 @@
 # CleanLinux
 
-Экспериментальный Linux, собранный **с нуля** (не LFS) для портативных консолей и ПК на **x86_64 и arm64**.
+**База для Linux-сборок, как Arch.** Система, собранная **с нуля** (не LFS), драйверы и оптимизация под
+конкретное железо — ПК, ноутбуки, портативные консоли и одноплатники на **x86_64 и arm64**.
 Всё собирается из исходников прямо на устройстве — под его процессор и видеокарту, а система обновляется по модели **rolling release+++**.
 Пакетный менеджер **`burn`** «прожигает» исходники в пакеты под твоё железо.
+
+KDE Plasma, labwc, sway и любые другие DE и WM, приложения, Steam — **не часть базы**: они ставятся поверх,
+отдельными *сборками*. База ничего не выбирает за тебя, но даёт всё, чтобы любая сборка хорошо работала на твоём железе.
 
 *English summary [below](#english).*
 
 > **Статус: pre-alpha.** Уже работают пакетный менеджер `burn`, профили железа, рецепты базовой системы и bootstrap с нуля.
 > Проверено: x86_64 (`generic-x86_64`) и arm64 (`mangmi-air-x`) собираются от компилятора хоста до rootfs из 21 пакета
 > (GCC 16.2, glibc 2.44, bash, coreutils, util-linux, dinit, …): x86_64 — архив 28 МБ, проверен в chroot (`burn doctor` внутри системы);
-> arm64 — 25 МБ, проверен через qemu-user. Загрузочного образа (ядро + загрузчик) пока нет — см. [docs/ROADMAP.md](docs/ROADMAP.md).
+> arm64 — 25 МБ, проверен через qemu-user. Загрузочного образа (ядро + загрузчик) пока нет — это следующий этап, см. [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Идея
 
 | | |
 |---|---|
+| **База, а не витрина** | Только система, драйверы и оптимизация под железо. DE, WM, приложения и игры — сборки поверх; правило, что куда относится, — в [docs/SCOPE.md](docs/SCOPE.md). |
 | **С нуля, но не LFS** | Свой пакетный менеджер, свой формат рецептов и свой cross-first bootstrap вместо книги с ручными шагами. |
 | **Без бинарников** | Репозиторий [CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes) — как AUR: только ссылки на исходники upstream, sha256 и рецепты. |
-| **Под твоё железо** | Профиль устройства задаёт `-march`/`-mcpu`, драйверы GPU, параметры ядра и features (аналог USE-флагов). |
-| **Минимум ресурсов** | dinit вместо systemd, без документации, лишних локалей и статических библиотек, LTO, Wayland-first. |
-| **Совместимость** | glibc (не musl), merged `/usr` — Steam/Proton, проприетарные драйверы и обычные бинарные программы работают. |
+| **Под твоё железо** | Профиль устройства задаёт `-march`/`-mcpu`, драйверы GPU, параметры ядра и аппаратные features (аналог USE-флагов). |
+| **Минимум ресурсов** | dinit вместо systemd, без документации, лишних локалей и статических библиотек, LTO. |
+| **Совместимость** | glibc (не musl), merged `/usr` — проприетарные драйверы, Flatpak/AppImage и обычные бинарные программы работают. |
 | **Свежее всё** | GCC 16, glibc 2.44, binutils 2.47, Linux 7.3, coreutils 9.12, bash 5.3, … — `tools/updates.sh` каждый день сверяет рецепты с upstream и публикует проверенные обновления в канал `edge`. |
 | **Быстрая сборка** | Все исходники скачиваются параллельно и проверяются до начала сборки; `CCACHE=1`, `LINKER=mold`, LTO, `-O3` для горячего кода (zstd, lz4, zlib-ng). |
 | **Воспроизводимость** | Тот же рецепт + флаги + тулчейн → побайтно тот же пакет (`SOURCE_DATE_EPOCH`, `-ffile-prefix-map`, фиксированные времена файлов). |
-| **Игры и консоли** | Ядро с NTSYNC (Proton), BBR + fq, zswap/zram на zstd, MGLRU, `PREEMPT_DYNAMIC`, драйверы ROG Ally, Legion Go, MSI Claw, AYANEO, OneXPlayer; `vm.max_map_count` для игр. |
+| **Железо** | Ядро под класс устройства: zswap/zram на zstd, MGLRU, BFQ для флеша, amd-pstate EPP, `PREEMPT_DYNAMIC`, BBR + fq; платформенные драйверы и встроенные контроллеры ROG Ally, Legion Go, MSI Claw, AYANEO, OneXPlayer, Steam Deck. |
 | **x86_64 + arm64** | Обе архитектуры равноправны; любую можно собрать с любой (cross-first). |
+
+## База и сборки
+
+```
+ сборки     KDE Plasma │ labwc │ sway │ консольный интерфейс │ твоя        отдельные репозитории
+ ───────────────────────────────────────────────────────────────────────────────────────────
+ platform   Wayland/X11-библиотеки, libinput, seatd/elogind, D-Bus, PipeWire, шрифтовый стек
+ hardware   ядро под профиль, firmware, Mesa/Vulkan, звук, ввод, питание, датчики, quirks
+ core       filesystem, glibc, bash, coreutils, util-linux, dinit, kmod, burn, …   (base)
+```
+
+CleanLinux отвечает за три нижних слоя. Сборка — это репозиторий со своими рецептами, набором пакетов,
+features и настройками; она ставится и обновляется тем же `burn` и не меняет базу.
 
 ## Rolling release+++
 
@@ -47,7 +65,7 @@
 | `native` | эта машина (автоопределение) | `-march=native` / `-mcpu=native` | по `/sys` |
 | `generic-x86_64` | любой x86_64 ПК с ~2009 г. | `x86-64-v2` | amd intel nouveau virgl |
 | `generic-x86_64-v3` | современные ПК (Haswell+, Zen+) | `x86-64-v3` (AVX2, FMA) | amd intel nouveau virgl |
-| `generic-aarch64` | любая arm64-плата или консоль | `armv8-a` | freedreno panfrost v3d lima etnaviv virgl |
+| `generic-aarch64` | любая arm64-плата или устройство | `armv8-a` | freedreno panfrost v3d lima etnaviv virgl |
 | `steam-deck` | Valve Steam Deck LCD/OLED | `znver2` | amd |
 | `rog-ally` | ASUS ROG Ally / Ally X | `znver4` | amd |
 | `rog-xbox-ally-x` | ASUS ROG Xbox Ally X, Lenovo Legion Go 2 (Z2 Extreme) | `znver5` | amd |
@@ -106,6 +124,7 @@ bootstrap/bootstrap.sh --profile mangmi-air-x all     # arm64: тулчейн, b
 
 ## Документация
 
+- [docs/SCOPE.md](docs/SCOPE.md) — что входит в базу, а что ставится сверху
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — из чего состоит система и почему так
 - [docs/ROLLING.md](docs/ROLLING.md) — как устроены обновления rolling release+++
 - [docs/RECIPES.md](docs/RECIPES.md) — как писать рецепты
@@ -117,12 +136,16 @@ MIT — см. [LICENSE](LICENSE). Пакеты распространяются 
 
 ## English
 
-**CleanLinux** is an experimental Linux distribution built **from scratch** (not LFS) for handheld consoles and PCs, on **x86_64 and arm64**.
-There are no binary repositories: the [CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes) repository holds only upstream source links, checksums and build recipes (like the AUR, but for the whole system), and the `burn` package manager builds everything locally, tuned by a hardware profile (CPU flags, GPU drivers, kernel options, features).
+**CleanLinux** is a **base for Linux spins, like Arch**: a system built **from scratch** (not LFS), drivers and
+hardware-specific tuning for PCs, laptops, handhelds and boards, on **x86_64 and arm64**. Desktops, window
+managers, applications and games are not part of the base: they are *spins* on top (KDE Plasma, labwc, sway, ...),
+maintained in their own repositories and installed with the same package manager (see [docs/SCOPE.md](docs/SCOPE.md)).
 
-- glibc (not musl), GCC 16, merged `/usr`, dinit, Wayland-first; minimal by default (no docs, extra locales or static libraries; LTO).
+There are no binary repositories: the [CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes) repository holds only upstream source links, checksums and build recipes (like the AUR, but for the whole system), and the `burn` package manager builds everything locally, tuned by a hardware profile (CPU flags, GPU drivers, kernel options, hardware features).
+
+- glibc (not musl), GCC 16, merged `/usr`, dinit; minimal by default (no docs, extra locales or static libraries; LTO). The software stack (Wayland or X11, PipeWire, ...) is chosen by spins, not by the base.
 - **Rolling release+++**: updates are planned, fully built before anything is installed, snapshotted, ABI-aware (preserved libraries + automatic rebuilds after soname changes), verified with `burn doctor`, and can be rolled back or held per package. A daily upstream watcher publishes verified version bumps to the `edge` channel.
 - `burn` ("burns" sources into packages for your hardware): parallel, verified prefetch of every source before building, reproducible packages (`SOURCE_DATE_EPOCH`, `-ffile-prefix-map`, clamped file times), `CCACHE=1`, `LINKER=mold|lld`, `-O3` for hot code.
-- Handheld-ready kernel defaults: NTSYNC for Proton, BBR + fq, zstd zswap/zram, MGLRU, `PREEMPT_DYNAMIC`, ROG Ally / Legion Go / MSI Claw / AYANEO / OneXPlayer drivers. Profiles for Steam Deck, ROG Ally (X), ROG Xbox Ally X, Legion Go / Go S / Go 2, MSI Claw, Retroid Pocket 5, AYN Odin 2, Mangmi Air X and more.
+- Hardware: kernel defaults per device class (zstd zswap/zram, MGLRU, BFQ for flash, amd-pstate EPP, `PREEMPT_DYNAMIC`, BBR + fq), platform and built-in controller drivers for ROG Ally / Legion Go / MSI Claw / AYANEO / OneXPlayer / Steam Deck. Profiles for Steam Deck, ROG Ally (X), ROG Xbox Ally X, Legion Go / Go S / Go 2, MSI Claw, Retroid Pocket 5, AYN Odin 2, Mangmi Air X, Raspberry Pi 5 and more.
 - Cross-first bootstrap: `bootstrap/bootstrap.sh` builds a cross toolchain, glibc and the base system for either architecture from any host.
-- Status: pre-alpha. Verified: x86_64 and arm64 (Mangmi Air X profile) bootstrap from a host compiler to a 21-package rootfs (GCC 16.2, glibc 2.44, dinit, ...), tested in a chroot (x86_64) and under qemu-user (arm64). A bootable image (kernel + bootloader) is next (see [docs/ROADMAP.md](docs/ROADMAP.md)).
+- Status: pre-alpha. Verified: x86_64 and arm64 (Mangmi Air X profile) bootstrap from a host compiler to a 21-package rootfs (GCC 16.2, glibc 2.44, dinit, ...), tested in a chroot (x86_64) and under qemu-user (arm64). A bootable image (kernel + bootloader) is the next stage (see [docs/ROADMAP.md](docs/ROADMAP.md)).
