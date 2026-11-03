@@ -5,8 +5,10 @@
 
 *English summary [below](#english).*
 
-> **Статус: pre-alpha.** Уже есть пакетный менеджер `broom`, профили железа, рецепты базовой системы и bootstrap тулчейна.
-> Загрузочного образа пока нет — см. [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Статус: pre-alpha.** Уже работают пакетный менеджер `broom`, профили железа, рецепты базовой системы и bootstrap с нуля.
+> Проверено: x86_64 (`generic-x86_64`) и arm64 (`mangmi-air-x`) собираются от компилятора хоста до rootfs из 21 пакета
+> (GCC 16.2, glibc 2.44, bash, coreutils, util-linux, dinit, …): x86_64 — архив 28 МБ, проверен в chroot (`broom doctor` внутри системы);
+> arm64 — 25 МБ, проверен через qemu-user. Загрузочного образа (ядро + загрузчик) пока нет — см. [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Идея
 
@@ -88,7 +90,7 @@ bootstrap/bootstrap.sh --arch x86_64 toolchain        # кросс-тулчей�
 bootstrap/bootstrap.sh --profile mangmi-air-x all     # arm64: тулчейн, base, tarball
 ```
 
-Каждый шаг пишет лог в `build/<arch>/logs/` и отметку в `build/<arch>/stamps/`, поэтому прерванный bootstrap продолжается с того же места.
+На 2 ядрах тулчейн собирается примерно за 45 минут, base — ещё около 30. Каждый шаг пишет лог в `build/<arch>/logs/` и отметку в `build/<arch>/stamps/`, поэтому прерванный bootstrap продолжается с того же места.
 
 ## Документация
 
@@ -109,4 +111,4 @@ There are no binary repositories: the [CleanLinux-Recipes](https://github.com/vo
 - glibc (not musl), GCC 16, merged `/usr`, dinit, Wayland-first; minimal by default (no docs, extra locales or static libraries; LTO).
 - **Rolling release+++**: updates are planned, fully built before anything is installed, snapshotted, ABI-aware (preserved libraries + automatic rebuilds after soname changes), verified with `broom doctor`, and can be rolled back or held per package.
 - Cross-first bootstrap: `bootstrap/bootstrap.sh` builds a cross toolchain, glibc and the base system for either architecture from any host.
-- Status: pre-alpha — the package manager, profiles, base recipes and toolchain bootstrap exist; a bootable image is next (see [docs/ROADMAP.md](docs/ROADMAP.md)).
+- Status: pre-alpha. Verified: x86_64 and arm64 (Mangmi Air X profile) bootstrap from a host compiler to a 21-package rootfs (GCC 16.2, glibc 2.44, dinit, ...), tested in a chroot (x86_64) and under qemu-user (arm64). A bootable image (kernel + bootloader) is next (see [docs/ROADMAP.md](docs/ROADMAP.md)).

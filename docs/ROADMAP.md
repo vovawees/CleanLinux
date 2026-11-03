@@ -8,7 +8,7 @@
 - [x] rolling release+++: `plan`, сборка до установки, хуки (btrfs-снимок), preserved libs, ABI-пересборка, `hold`, `rollback`, `history`, `doctor`
 - [x] профили: `native`, `generic-x86_64`, `generic-aarch64`, Steam Deck, ROG Ally, Mangmi Air X, Raspberry Pi 5, RK3566, ASUS X540YA
 - [x] рецепты базовой системы: GCC 16, glibc 2.44, binutils 2.47, Linux 7.3, bash, coreutils, util-linux, dinit, …
-- [x] cross-first bootstrap тулчейна и rootfs для x86_64 и aarch64
+- [x] cross-first bootstrap для x86_64 и aarch64: тулчейн → 21 пакет `base` → архив rootfs (проверено: x86_64 в chroot, aarch64 под qemu-user)
 - [x] тесты: smoke на настоящих рецептах, полный цикл rolling+++
 
 ## Дальше: загрузка
