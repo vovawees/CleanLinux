@@ -1,0 +1,53 @@
+name: toolchain
+
+# Full bootstrap from source: hours of CPU, so it only runs on demand.
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "bootstrap stage(s)"
+        type: choice
+        options: [toolchain, base, all]
+        default: toolchain
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    name: bootstrap ${{ matrix.arch }} (${{ inputs.stage }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: host tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends build-essential bison flex texinfo gawk m4 \
+            perl python3 zstd xz-utils meson ninja-build cmake pkg-config qemu-user git curl
+      - name: recipes
+        run: git clone -q --depth 1 https://github.com/vovawees/CleanLinux-Recipes.git build/recipes
+      - name: source cache
+        uses: actions/cache@v4
+        with:
+          path: build/cache/sources
+          key: sources-${{ hashFiles('build/recipes/packages/*/recipe') }}
+          restore-keys: sources-
+      - name: bootstrap
+        run: bootstrap/bootstrap.sh --arch ${{ matrix.arch }} --recipes build/recipes/packages ${{ inputs.stage }}
+      - name: logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.arch }}
+          path: build/${{ matrix.arch }}/logs
+      - name: rootfs
+        if: success() && inputs.stage == 'all'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rootfs-${{ matrix.arch }}
+          path: build/${{ matrix.arch }}/*.tar.zst
