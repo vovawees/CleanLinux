@@ -67,9 +67,15 @@ build_pkg() {
 		LOG=$CACHE_DIR/logs/$name-$version-$release.log
 		rm -rf "$WORK"
 		mkdir -p "$WORK" "$BUILD" "$DESTDIR" "${LOG%/*}"
+		# reproducible packages: the same recipe, flags and toolchain give the same bytes.
+		# Timestamps come from the recipe, build paths never end up in the binaries.
+		SOURCE_DATE_EPOCH=$(recipe_epoch)
+		META_CFLAGS=$CFLAGS
+		CFLAGS+=" -ffile-prefix-map=$WORK=/usr/src/$name" CXXFLAGS+=" -ffile-prefix-map=$WORK=/usr/src/$name"
+		export SOURCE_DATE_EPOCH CFLAGS CXXFLAGS
 		{
 			echo "# burn $BURN_VERSION: $name $version-$release, $(date -u)"
-			echo "# CHOST=$CHOST CC=$CC"
+			echo "# CHOST=$CHOST CC=$CC SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"
 			echo "# CFLAGS=$CFLAGS"
 			echo "# LDFLAGS=$LDFLAGS"
 			echo "# features: $(features_string)"
@@ -94,7 +100,8 @@ build_pkg() {
 		pkg_finalize
 		pkg_write_meta
 		mkdir -p "${out%/*}"
-		(cd "$DESTDIR" && LC_ALL=C tar --sort=name --numeric-owner --owner=0 --group=0 -cf - .) | $PKG_COMPRESS >"$out.part"
+		(cd "$DESTDIR" && LC_ALL=C tar --sort=name --numeric-owner --owner=0 --group=0 \
+			--mtime="@$SOURCE_DATE_EPOCH" --clamp-mtime -cf - .) | $PKG_COMPRESS >"$out.part"
 		mv -f "$out.part" "$out"
 		msg2 "package ${out##*/} ($(du -h "$out" | cut -f1), $(grep -vc '/$' "$DESTDIR/.BURN/files") files)"
 		[[ ${KEEP_WORK:-0} == 1 ]] || rm -rf "$WORK"
@@ -178,7 +185,8 @@ pkg_write_meta() {
 		printf 'buildid=%s\nrid=%s\nprofile=%s\n' "$BUILDID" "$(recipe_rid)" "$PROFILE"
 		printf 'summary=%s\nlicense=%s\ndepends=%s\n' "$summary" "${license[*]}" "$(deps_active "${depends[@]}" | paste -sd' ' -)"
 		printf 'features=%s\nbackup=%s\n' "$(features_string)" "${backup[*]}"
-		printf 'cflags=%s\nldflags=%s\nbuilddate=%s\n' "$CFLAGS" "$LDFLAGS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+		printf 'cflags=%s\nldflags=%s\nbuilddate=%s\n' "${META_CFLAGS:-$CFLAGS}" "$LDFLAGS" \
+			"$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y-%m-%dT%H:%M:%SZ)"
 	} >"$m/meta"
 	(cd "$DESTDIR" && find . -mindepth 1 \( -path ./.BURN -prune \) -o \( -type d -printf '%P/\n' \) -o -printf '%P\n') |
 		LC_ALL=C sort >"$m/files"

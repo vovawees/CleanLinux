@@ -89,6 +89,14 @@ recipe_rid() {
 	} | sha256sum | cut -c1-16
 }
 
+# SOURCE_DATE_EPOCH of a build: the last commit that touched the recipe (or its newest file)
+recipe_epoch() {
+	local t=''
+	if have git; then t=$(git -C "$RECIPE_DIR" log -1 --format=%ct -- . 2>/dev/null) || t=''; fi
+	if [[ -z $t ]]; then t=$(find "$RECIPE_DIR" -type f -printf '%T@\n' | sort -n | tail -n1); fi
+	printf '%s\n' "${t%.*}"
+}
+
 # Identity of the exact build: recipe + toolchain + flags + the ABI (sonames) of the installed
 # dependencies. It names the cached package, so a soname bump of a dependency never reuses
 # a stale build.
