@@ -140,10 +140,10 @@ bootstrap на чужом хосте.
 - [x] репозиторий [burn](https://github.com/vovawees/burn): сборка через `make` (только libc + libzstd), unit-тесты, CI, сверка с прототипом (`make proto`)
 - [x] язык рецептов: свой разбор статического подмножества shell (присваивания, массивы, `${v%…}`, `{001..020}`) — `info`, `query`, `search`, `lint` без запуска bash
 - [x] конфиг и профили (статические: машину определяет burn — `HOST_ARCH`, `HOST_VIDEO_CARDS`); определение CPU и устройства на C (cpuid, DMI, device tree) — `profile show|list|detect`
-- [ ] база пакетов: `list`, `files`, `owner`, `hold`, `history`, `doctor` — индекс файлов в памяти вместо grep по спискам
-- [ ] пакеты: tar + zstd внутри процесса; атомарная установка (временный файл + `rename`), пути только внутри корня (`openat2` + `RESOLVE_IN_ROOT`), защита конфигов, preserved libs; триггеры (`ldconfig`, `depmod`) — один раз на транзакцию
+- [x] база пакетов: `list`, `files`, `owner`, `hold`, `history`, `doctor` — индекс файлов в памяти вместо grep по спискам
+- [x] пакеты: tar + zstd внутри процесса; атомарная установка (временный файл + `rename`, запись базы одним `RENAME_EXCHANGE`), пути только внутри корня (`openat2` + `RESOLVE_IN_ROOT`), защита конфигов, preserved libs; триггеры (`ldconfig`, `depmod`) — один раз на транзакцию; `install <файл>`, `remove`, `rollback`
 - [ ] сборка: параллельная загрузка, sha256 внутри процесса, типы сборки на C (autotools, meson, cmake, make, cargo, python); bash только для функций `do_*` из рецептов; разбор ELF на C (SONAME, NEEDED) вместо `readelf` на каждый файл, strip пачками
-- [ ] rolling+++: `sync`, `plan` (порядок зависимостей без bash), `update`, ABI-пересборка, `rollback`, хуки; снимок btrfs через ioctl, без btrfs-progs
+- [ ] rolling+++: `sync`, `plan` (порядок зависимостей без bash), `update`, ABI-пересборка, хуки; снимок btrfs через ioctl, без btrfs-progs
 - [ ] переход: bootstrap, тесты и образ используют C-burn, bash-прототип удаляется из CleanLinux, рецепт `burn` в CleanLinux-Recipes собирается из релизов
 - [ ] дальше: split-пакеты (например, `gcc-libs` отдельно от компилятора); сборка от непривилегированного пользователя с изоляцией (namespaces, без сети); канал `security` и подписи; бинарный кеш *своих* сборок между своими устройствами; PGO и опциональный Clang; HTTP/2 через libcurl как опция; SHA-NI
 
