@@ -12,7 +12,7 @@ Commands:
   search [regex]              find recipes
   info <pkg>                  show a recipe with its resolved features
   query <pkg> <var>           print one recipe variable (for scripts)
-  fetch <pkg>...              download and verify sources
+  fetch <pkg>...              download (in parallel) and verify sources
   unpack <pkg> [dir]          unpack + patch + prepare sources, print the source dir
   build <pkg>...              build into the package cache (no deps, no install)
   install <pkg|file>...       resolve dependencies, build and install
@@ -247,15 +247,8 @@ cmd_query() {
 
 cmd_fetch() {
 	(($#)) || die "usage: burn fetch <pkg>..."
-	local p
-	for p; do
-		(
-			recipe_load "$p"
-			features_resolve
-			msg "Fetching $name $version"
-			fetch_sources
-		)
-	done
+	msg "Fetching the sources of: $*"
+	prefetch "$@"
 }
 
 # unpack PKG [DIR]: sources ready for hacking (or for bootstrap/), prints the source directory
@@ -325,6 +318,7 @@ cmd_install() {
 		if ((${#todo[@]})); then
 			msg "Packages (${#todo[@]}): ${todo[*]}"
 			confirm "Build and install them?" || die "aborted, nothing changed"
+			prefetch "${todo[@]}"
 			for n in "${todo[@]}"; do
 				f=$(build_pkg "$n")
 				pkg_install_file "$f"

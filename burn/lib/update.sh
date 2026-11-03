@@ -101,7 +101,9 @@ cmd_update() {
 	((${#todo[@]})) || return 0
 	confirm "Build ${#todo[@]} package(s) and apply them?" || die "aborted, nothing changed"
 	deps_order_set "${todo[@]}"
-	# 1) build everything: the running system is untouched until every build succeeded
+	# 1) fetch and verify every source, then build everything: the running system is
+	#    untouched until every build succeeded
+	prefetch "${DEP_ORDER[@]}"
 	for n in "${DEP_ORDER[@]}"; do
 		f=$(build_pkg "$n")
 		files+=("$f")
@@ -137,6 +139,7 @@ abi_followup() {
 	deps_order_set "${rebuild[@]}"
 	local saved=$REBUILD
 	REBUILD=1 TXN_OP=rebuild
+	prefetch "${DEP_ORDER[@]}"
 	for p in "${DEP_ORDER[@]}"; do
 		f=$(build_pkg "$p")
 		pkg_install_file "$f"

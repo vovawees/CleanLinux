@@ -15,6 +15,7 @@ config_defaults() {
 	CHANNEL=main
 	PROFILE=${BURN_PROFILE:-native}
 	JOBS=$(nproc 2>/dev/null || echo 2)
+	FETCH_JOBS=4
 	FEATURES=''
 	LOCALES='en ru'
 	KEEP_DOCS=0 KEEP_INFO=0 KEEP_MAN=1

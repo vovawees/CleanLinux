@@ -47,6 +47,27 @@ download() {
 	mv -f "$tmp" "$2"
 }
 
+# sum_ok FILE SUM: SUM is the sha256 of FILE (or SKIP)
+sum_ok() { [[ $2 == SKIP || $(sha256sum "$1" | cut -d' ' -f1) == "$2" ]]; }
+
+# fetch_one SPEC FILE SUM PKG: FILE (in the source cache) is downloaded and matches SUM
+fetch_one() {
+	local spec=$1 file=$2 sum=$3 pkg=$4
+	source_info "$spec"
+	if [[ ! -f $file ]]; then
+		msg2 "download $SRC_NAME"
+		if ! download "$SRC_URL" "$file"; then
+			[[ $spec == *gnu://* ]] || die "$pkg: download failed: $SRC_URL"
+			download "https://ftp.gnu.org/gnu/${spec#*gnu://}" "$file" || die "$pkg: download failed: $SRC_URL"
+		fi
+	fi
+	[[ -n $sum ]] || die "$pkg: missing sha256 for $SRC_NAME"
+	if ! sum_ok "$file" "$sum"; then
+		mv -f "$file" "$file.bad"
+		die "$pkg: sha256 mismatch for $SRC_NAME (moved aside as .bad)"
+	fi
+}
+
 # fetch_sources [verify=1]
 fetch_sources() {
 	local verify=${1:-1} i spec file sum
@@ -55,24 +76,58 @@ fetch_sources() {
 		spec=${source[$i]}
 		file=$(source_path "$spec")
 		source_info "$spec"
+		sum=${sha256[$i]:-}
+		((verify)) || sum=SKIP
 		if ((SRC_LOCAL)); then
 			[[ -f $file ]] || die "$name: local source '$SRC_URL' is missing"
-		elif [[ ! -f $file ]]; then
-			msg2 "download $SRC_NAME"
-			if ! download "$SRC_URL" "$file"; then
-				[[ $spec == *gnu://* ]] || die "$name: download failed: $SRC_URL"
-				download "https://ftp.gnu.org/gnu/${spec#*gnu://}" "$file" || die "$name: download failed: $SRC_URL"
-			fi
-		fi
-		((verify)) || continue
-		sum=${sha256[$i]:-}
-		[[ -n $sum ]] || die "$name: missing sha256 for $SRC_NAME"
-		[[ $sum == SKIP ]] && continue
-		if [[ $(sha256sum "$file" | cut -d' ' -f1) != "$sum" ]]; then
-			((SRC_LOCAL)) || mv -f "$file" "$file.bad"
-			die "$name: sha256 mismatch for $SRC_NAME (moved aside as .bad)"
+			[[ -n $sum ]] || die "$name: missing sha256 for $SRC_NAME"
+			sum_ok "$file" "$sum" || die "$name: sha256 mismatch for $SRC_NAME"
+		else
+			fetch_one "$spec" "$file" "$sum" "$name"
 		fi
 	done
+}
+
+# remote_sources PKG...: "file<TAB>spec<TAB>sha256<TAB>pkg" for every remote source
+remote_sources() {
+	local p i
+	for p; do
+		(
+			recipe_load "$p"
+			features_resolve
+			for i in "${!source[@]}"; do
+				source_info "${source[$i]}"
+				((SRC_LOCAL)) || printf '%s\t%s\t%s\t%s\n' "$CACHE_DIR/sources/$SRC_NAME" "${source[$i]}" "${sha256[$i]:-}" "$name"
+			done
+		)
+	done
+}
+
+# prefetch PKG...: download (FETCH_JOBS at a time) and verify every source of PKG... before
+# anything is built, so a long update never stops halfway on a dead link or a bad checksum.
+prefetch() {
+	local e file spec sum pkg running=0 failed=0
+	local -a list=()
+	local -A seen=()
+	mapfile -t list < <(remote_sources "$@")
+	mkdir -p "$CACHE_DIR/sources"
+	for e in "${list[@]}"; do
+		IFS=$'\t' read -r file spec sum pkg <<<"$e"
+		[[ -z ${seen[$file]:-} ]] || continue
+		seen[$file]=1
+		if ((running >= FETCH_JOBS)); then
+			wait -n || failed=$((failed + 1))
+			running=$((running - 1))
+		fi
+		fetch_one "$spec" "$file" "$sum" "$pkg" &
+		running=$((running + 1))
+	done
+	while ((running > 0)); do
+		wait -n || failed=$((failed + 1))
+		running=$((running - 1))
+	done
+	((failed == 0)) || die "$failed source(s) could not be fetched or verified: nothing was built"
+	msg2 "sources: ${#seen[@]} downloaded and verified"
 }
 
 is_archive() {
