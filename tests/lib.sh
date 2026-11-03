@@ -2,7 +2,12 @@
 # Shared helpers for the test scripts.
 set -euo pipefail
 TESTS=$(cd "${BASH_SOURCE[0]%/*}" && pwd)
-BURN=$TESTS/../burn/burn
+# burn: $BURN, or the release the burn recipe pins, built for this host
+if [[ -z ${BURN:-} ]]; then
+	BURN=$("$TESTS/../bootstrap/host-burn.sh" "${BURN_RECIPES:-$TESTS/../../CleanLinux-Recipes/packages}" \
+		"$TESTS/../build/host")
+fi
+export BURN_PROFILE_DIR=${BURN_PROFILE_DIR:-$TESTS/../profiles}
 T=$(mktemp -d "${TMPDIR:-/tmp}/burn-test.XXXXXX")
 ROOTFS=$T/root
 export BURN_CACHE=${BURN_CACHE:-$T/cache}
