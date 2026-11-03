@@ -6,6 +6,7 @@ release=1
 summary="Test library (soname = major version)"
 homepage=https://example.org/libfoo
 license=(MIT)
+category=extra
 build_type=custom
 source=(foo.c foo.h)
 sha256=(SKIP SKIP)

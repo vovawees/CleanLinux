@@ -7,6 +7,8 @@ RECIPE_VARS=(name version release summary homepage license category source sha25
 	out_of_tree meson_subdir cmake_subdir cflags_append)
 RECIPE_FUNCS=(do_prepare do_configure do_build do_check do_install post_install
 	configure_extra meson_extra cmake_extra)
+# category = layer of the base (docs/SCOPE.md); 'extra' is for spin and user overlays
+RECIPE_CATEGORIES=(core devel meta kernel firmware drivers platform extra)
 
 recipe_dirs() {
 	local d

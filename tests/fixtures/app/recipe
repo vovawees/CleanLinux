@@ -6,6 +6,7 @@ release=1
 summary="Test program using libfoo"
 homepage=https://example.org/app
 license=(MIT)
+category=extra
 depends=(libfoo)
 build_type=custom
 source=(app.c)

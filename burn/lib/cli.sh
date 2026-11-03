@@ -450,6 +450,7 @@ lint_one() (
 	[[ -n $summary ]] || e+=("summary is empty")
 	((${#license[@]})) || e+=("license is empty")
 	[[ $homepage == https://* || $homepage == http://* ]] || e+=("homepage must be a URL")
+	in_list "$category" "${RECIPE_CATEGORIES[@]}" || e+=("category must be one of: ${RECIPE_CATEGORIES[*]} (got '$category')")
 	[[ -f $BURN_HOME/buildtypes/$build_type.sh ]] || e+=("unknown build_type '$build_type'")
 	if [[ $build_type != meta ]]; then
 		((${#source[@]})) || e+=("no sources")

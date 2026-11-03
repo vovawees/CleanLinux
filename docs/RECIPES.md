@@ -26,6 +26,7 @@
 
 ## Правила хорошего рецепта
 
+- **Категория = слой.** `core` `devel` `meta` `kernel` `firmware` `drivers` `platform` — для CleanLinux-Recipes ([SCOPE.md](SCOPE.md)); рецепты сборок и личных оверлеев используют `extra`. DE, WM, приложения и игры в официальный репозиторий не попадают.
 - **Только upstream.** `https://` или зеркала `gnu://…`, `kernel://…`; никаких бинарных blob'ов и вендоренных архивов в репозитории.
 - **sha256 обязателен.** `burn -R packages checksum --write <pkg>` впишет настоящие хеши из скачанных файлов.
 - **Явные features.** Каждая опциональная зависимость — feature (`features=(+zlib)`, `depends=(zlib-ng:zlib)`, `meson_feature zlib`). Никакого автодетекта.
