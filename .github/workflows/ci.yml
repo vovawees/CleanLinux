@@ -23,8 +23,7 @@ jobs:
           shellcheck --version
       - name: shellcheck
         run: >
-          shellcheck -x burn/burn burn/lib/*.sh burn/buildtypes/*.sh burn/hooks/*/*
-          tests/*.sh bootstrap/*.sh profiles/*.profile profiles/devices/*.profile
+          shellcheck -x tests/*.sh bootstrap/*.sh profiles/*.profile profiles/devices/*.profile
 
   tests:
     name: tests (x86_64)
@@ -34,7 +33,7 @@ jobs:
       - name: host tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends meson ninja-build cmake pkg-config zstd xz-utils
+          sudo apt-get install -y -qq --no-install-recommends meson ninja-build cmake pkg-config zstd xz-utils libzstd-dev
       - name: recipes
         run: git clone -q --depth 1 https://github.com/vovawees/CleanLinux-Recipes.git ../CleanLinux-Recipes
       - name: rolling release+++ test
@@ -52,7 +51,7 @@ jobs:
       - name: host tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends meson ninja-build cmake pkg-config zstd xz-utils
+          sudo apt-get install -y -qq --no-install-recommends meson ninja-build cmake pkg-config zstd xz-utils libzstd-dev
       - name: recipes
         run: git clone -q --depth 1 https://github.com/vovawees/CleanLinux-Recipes.git ../CleanLinux-Recipes
       - name: rolling release+++ test

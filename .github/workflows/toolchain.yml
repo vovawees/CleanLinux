@@ -28,7 +28,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends build-essential bison flex texinfo gawk m4 \
-            perl python3 zstd xz-utils meson ninja-build cmake pkg-config qemu-user git curl
+            perl python3 zstd xz-utils libzstd-dev meson ninja-build cmake pkg-config qemu-user git curl
       - name: recipes
         run: git clone -q --depth 1 https://github.com/vovawees/CleanLinux-Recipes.git build/recipes
       - name: source cache
