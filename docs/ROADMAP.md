@@ -143,7 +143,8 @@ bootstrap на чужом хосте.
 - [x] база пакетов: `list`, `files`, `owner`, `hold`, `history`, `doctor` — индекс файлов в памяти вместо grep по спискам
 - [x] пакеты: tar + zstd внутри процесса; атомарная установка (временный файл + `rename`, запись базы одним `RENAME_EXCHANGE`), пути только внутри корня (`openat2` + `RESOLVE_IN_ROOT`), защита конфигов, preserved libs; триггеры (`ldconfig`, `depmod`) — один раз на транзакцию; `install <файл>`, `remove`, `rollback`
 - [x] сборка: параллельная загрузка, sha256 внутри процесса, типы сборки на C (autotools, meson, cmake, make, cargo, python, meta, custom); bash только для функций рецепта (`do_*`, `*_extra`, `post_install`, внутри них `bt_*` снова вызывает burn); разбор ELF на C (SONAME, NEEDED) вместо `readelf` на каждый файл, strip пачками; `build`, `unpack`, `install <рецепт>` с зависимостями и ABI-пересборкой — пакеты байт в байт как у прототипа
-- [ ] rolling+++: `sync`, `plan` (порядок зависимостей без bash), `update`, хуки; снимок btrfs через ioctl, без btrfs-progs
+- [x] rolling+++: `sync`, `plan` (порядок зависимостей без bash), `update`, хуки — сверены с прототипом на тестовом репозитории рецептов
+- [ ] снимок btrfs перед `update` через ioctl, без btrfs-progs (сейчас — хук `burn/hooks/pre-update.d/10-btrfs-snapshot`)
 - [ ] переход: bootstrap, тесты и образ используют C-burn, bash-прототип удаляется из CleanLinux, рецепт `burn` в CleanLinux-Recipes собирается из релизов
 - [ ] дальше: split-пакеты (например, `gcc-libs` отдельно от компилятора); сборка от непривилегированного пользователя с изоляцией (namespaces, без сети); канал `security` и подписи; бинарный кеш *своих* сборок между своими устройствами; PGO и опциональный Clang; HTTP/2 через libcurl как опция; SHA-NI
 
