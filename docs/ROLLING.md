@@ -54,7 +54,7 @@ burn history           # журнал транзакций
 
 ### Откуда берутся новые версии
 
-`tools/updates.sh` в CleanLinux-Recipes сам находит upstream по ссылкам рецепта — отдельных метаданных нет: листинги GNU и kernel.org (включая каталоги версий `gcc-X/`, `util-linux/vX.Y/`), stable-ядро из `releases.json`, GitHub releases (теги как запасной вариант), любые https-каталоги и официальные патчи bash/readline (`_patchlevel`). `-v` показывает и актуальные рецепты, `--write` поднимает версию, сбрасывает `release=1`, скачивает исходники и переписывает `sha256=()`.
+`tools/updates.sh` в CleanLinux-Recipes сам находит upstream по ссылкам рецепта — отдельных метаданных нет: листинги GNU и kernel.org (включая каталоги версий `gcc-X/`, `util-linux/vX.Y/`), stable-ядро из `releases.json`, GitHub releases (теги как запасной вариант), любые https-каталоги и официальные патчи bash/readline (`_patches=({001..NNN})`, версия — по числу патчей). `-v` показывает и актуальные рецепты, `--write` поднимает версию, сбрасывает `release=1`, скачивает исходники и переписывает `sha256=()`.
 
 ## Проверено тестами
 

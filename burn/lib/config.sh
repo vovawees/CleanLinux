@@ -96,6 +96,9 @@ inherit() {
 profile_load() {
 	CARCH=$(uname -m) CPU_FLAGS=native VIDEO_CARDS='' PROFILE_FEATURES='' PROFILE_DESC=''
 	EXTRA_CFLAGS='' EXTRA_LDFLAGS='' KERNEL_CMDLINE='' KERNEL_CONFIG=''
+	# this machine, for native.profile (profiles are static: no $(...) at their top level)
+	HOST_ARCH=$CARCH
+	HOST_VIDEO_CARDS=${HOST_VIDEO_CARDS-$(detect_video_cards)}
 	PROFILE_FILE=$(profile_find "$PROFILE") || die "profile '$PROFILE' not found (see: burn profile list)"
 	# shellcheck source=/dev/null
 	. "$PROFILE_FILE"
