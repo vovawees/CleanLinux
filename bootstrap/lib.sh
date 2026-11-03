@@ -231,21 +231,28 @@ install_broom() {
 }
 
 rootfs_test() {
-	local out
+	local out rc s=''
 	if [[ $(id -u) == 0 ]] || sudo -n true 2>/dev/null; then
-		local s=''
 		[[ $(id -u) == 0 ]] || s=sudo
 		if [[ $ARCH == "$(uname -m)" ]] || [[ -e /proc/sys/fs/binfmt_misc/qemu-$ARCH ]]; then
+			# real /dev and /proc, otherwise redirections to /dev/null leave plain files behind
+			mkdir -p "$ROOTFS/dev" "$ROOTFS/proc"
+			$s mount --bind /dev "$ROOTFS/dev"
+			$s mount -t proc proc "$ROOTFS/proc"
+			set +e
 			# shellcheck disable=SC2016
-			out=$($s chroot "$ROOTFS" /usr/bin/bash -c '. /etc/profile; echo "$BASH_VERSION"; ls / | head -n3; zstd --version; broom --version; broom list | wc -l')
+			out=$($s chroot "$ROOTFS" /usr/bin/bash -c '. /etc/profile; echo "bash $BASH_VERSION"; ls /; zstd --version; broom --version; broom list | wc -l; broom doctor')
+			rc=$?
+			set -e
+			$s umount "$ROOTFS/proc" "$ROOTFS/dev"
 			printf '%s\n' "$out"
-			return 0
+			return "$rc"
 		fi
 	fi
 	set +e
 	# shellcheck disable=SC2016
 	run_target "$ROOTFS/usr/bin/bash" -c 'echo "bash $BASH_VERSION runs"'
-	local rc=$?
+	rc=$?
 	set -e
 	((rc == 77)) && echo "cannot run $ARCH binaries here, skipped" && return 0
 	return "$rc"
