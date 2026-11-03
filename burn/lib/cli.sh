@@ -1,11 +1,11 @@
 # shellcheck shell=bash
 # Command line interface: option parsing and the user-facing commands.
 
-broom_usage() {
+burn_usage() {
 	cat <<USAGE
-broom $BROOM_VERSION - the CleanLinux package manager (source based, rolling+++)
+burn $BURN_VERSION - the CleanLinux package manager (source based, rolling+++)
 
-Usage: broom [options] <command> [arguments]
+Usage: burn [options] <command> [arguments]
 
 Commands:
   sync                        update the recipe repositories (git)
@@ -52,10 +52,10 @@ Options:
 USAGE
 }
 
-broom_main() {
+burn_main() {
 	config_defaults
 	CLI_FEATURES='' VERBOSE=0 ASSUME_YES=0 FORCE=0 REBUILD=0 NODEPS=0 NO_SYNC=0 WRITE=0
-	CONFIG_FILE=${BROOM_CONFIG:-}
+	CONFIG_FILE=${BURN_CONFIG:-}
 	local a cmd o_root='' o_profile='' o_jobs='' o_target='' o_host_deps=0 o_check=0 loaded
 	local -a o_recipes=() args=()
 	while (($#)); do
@@ -98,11 +98,11 @@ broom_main() {
 			-y | --yes) ASSUME_YES=1 && shift ;;
 			-v | --verbose) VERBOSE=1 && shift ;;
 			-h | --help)
-				broom_usage
+				burn_usage
 				return 0
 				;;
 			-V | --version)
-				printf 'broom %s\n' "$BROOM_VERSION"
+				printf 'burn %s\n' "$BURN_VERSION"
 				return 0
 				;;
 			--)
@@ -110,12 +110,12 @@ broom_main() {
 				args+=("$@")
 				break
 				;;
-			-?*) die "unknown option: $a (see: broom --help)" ;;
+			-?*) die "unknown option: $a (see: burn --help)" ;;
 			*) args+=("$a") && shift ;;
 		esac
 	done
 	if ((${#args[@]} == 0)); then
-		broom_usage >&2
+		burn_usage >&2
 		exit 2
 	fi
 	cmd=${args[0]}
@@ -140,10 +140,10 @@ broom_main() {
 	((o_host_deps == 0)) || HOST_DEPS=1
 	((o_check == 0)) || CHECK=1
 	if ((${#o_recipes[@]})); then RECIPE_PATHS=("${o_recipes[@]}" "${RECIPE_PATHS[@]}"); fi
-	DB_DIR=$R/var/lib/broom/installed
-	STATE_DIR=$R/var/lib/broom/state
-	REPO_DIR=${BROOM_REPO_DIR:-$R/var/lib/broom/repos}
-	HOLD_FILE=$R/etc/broom/hold
+	DB_DIR=$R/var/lib/burn/installed
+	STATE_DIR=$R/var/lib/burn/state
+	REPO_DIR=${BURN_REPO_DIR:-$R/var/lib/burn/repos}
+	HOLD_FILE=$R/etc/burn/hold
 	flags_setup
 
 	case $cmd in
@@ -169,19 +169,19 @@ broom_main() {
 		lint) cmd_lint "${args[@]}" ;;
 		checksum) cmd_checksum "${args[@]}" ;;
 		profile) cmd_profile "${args[@]}" ;;
-		help) broom_usage ;;
-		*) die "unknown command: $cmd (see: broom --help)" ;;
+		help) burn_usage ;;
+		*) die "unknown command: $cmd (see: burn --help)" ;;
 	esac
 }
 
-# Commands that change ROOT: root privileges for / and one broom at a time.
+# Commands that change ROOT: root privileges for / and one burn at a time.
 need_write() {
-	[[ -z ${BROOM_LOCK_FD:-} ]] || return 0
+	[[ -z ${BURN_LOCK_FD:-} ]] || return 0
 	if [[ -z $R && $(id -u) != 0 ]]; then die "this command changes the system: run it as root"; fi
-	mkdir -p "$R/var/lib/broom"
+	mkdir -p "$R/var/lib/burn"
 	if have flock; then
-		exec {BROOM_LOCK_FD}>"$R/var/lib/broom/lock"
-		flock -n "$BROOM_LOCK_FD" || die "another broom process is working on $ROOT"
+		exec {BURN_LOCK_FD}>"$R/var/lib/burn/lock"
+		flock -n "$BURN_LOCK_FD" || die "another burn process is working on $ROOT"
 	fi
 	return 0
 }
@@ -202,7 +202,7 @@ cmd_search() {
 }
 
 cmd_info() {
-	(($# == 1)) || die "usage: broom info <pkg>"
+	(($# == 1)) || die "usage: burn info <pkg>"
 	recipe_load "$1"
 	features_resolve
 	local inst=no s
@@ -219,7 +219,7 @@ cmd_info() {
 }
 
 cmd_query() {
-	(($# == 2)) || die "usage: broom query <pkg> <variable>"
+	(($# == 2)) || die "usage: burn query <pkg> <variable>"
 	recipe_load "$1"
 	features_resolve
 	local s
@@ -246,7 +246,7 @@ cmd_query() {
 }
 
 cmd_fetch() {
-	(($#)) || die "usage: broom fetch <pkg>..."
+	(($#)) || die "usage: burn fetch <pkg>..."
 	local p
 	for p; do
 		(
@@ -260,7 +260,7 @@ cmd_fetch() {
 
 # unpack PKG [DIR]: sources ready for hacking (or for bootstrap/), prints the source directory
 cmd_unpack() {
-	(($# == 1 || $# == 2)) || die "usage: broom unpack <pkg> [dir]"
+	(($# == 1 || $# == 2)) || die "usage: burn unpack <pkg> [dir]"
 	local pkg=$1 dest=${2:-}
 	(
 		recipe_load "$pkg"
@@ -281,7 +281,7 @@ cmd_unpack() {
 }
 
 cmd_build() {
-	(($#)) || die "usage: broom build <pkg>..."
+	(($#)) || die "usage: burn build <pkg>..."
 	local p f
 	for p; do
 		f=$(build_pkg "$p")
@@ -298,7 +298,7 @@ pkg_uptodate() {
 }
 
 cmd_install() {
-	(($#)) || die "usage: broom install <pkg|file.pkg.tar.zst>..."
+	(($#)) || die "usage: burn install <pkg|file.pkg.tar.zst>..."
 	need_write
 	local a f n
 	local -a files=() names=() todo=()
@@ -335,7 +335,7 @@ cmd_install() {
 }
 
 cmd_remove() {
-	(($#)) || die "usage: broom remove <pkg>..."
+	(($#)) || die "usage: burn remove <pkg>..."
 	need_write
 	local p i
 	for p; do db_has "$p" || die "$p is not installed"; done
@@ -359,13 +359,13 @@ cmd_list() {
 }
 
 cmd_files() {
-	(($# == 1)) || die "usage: broom files <pkg>"
+	(($# == 1)) || die "usage: burn files <pkg>"
 	db_has "$1" || die "$1 is not installed"
 	sed -n '/\/$/!s|^|/|p' "$DB_DIR/$1/files"
 }
 
 cmd_owner() {
-	(($# == 1)) || die "usage: broom owner <path>"
+	(($# == 1)) || die "usage: burn owner <path>"
 	local p=$1 q d found=0
 	[[ $p == /* ]] || p=$PWD/$p
 	p=$(readlink -m "$p")
@@ -397,7 +397,7 @@ cmd_hold() {
 }
 
 cmd_unhold() {
-	(($#)) || die "usage: broom unhold <pkg>..."
+	(($#)) || die "usage: burn unhold <pkg>..."
 	need_write
 	[[ -f $HOLD_FILE ]] || return 0
 	local p
@@ -417,7 +417,7 @@ cmd_history() {
 }
 
 cmd_rollback() {
-	(($# == 1)) || die "usage: broom rollback <pkg>"
+	(($# == 1)) || die "usage: burn rollback <pkg>"
 	need_write
 	local line f
 	db_has "$1" || die "$1 is not installed"
@@ -433,7 +433,7 @@ cmd_rollback() {
 	TXN_OP=''
 	cmd_hold "$1"
 	abi_followup
-	msg "$1 rolled back and held; 'broom unhold $1' lets updates touch it again"
+	msg "$1 rolled back and held; 'burn unhold $1' lets updates touch it again"
 }
 
 # lint_one RECIPE: prints one line per problem
@@ -456,7 +456,7 @@ lint_one() (
 	[[ -n $summary ]] || e+=("summary is empty")
 	((${#license[@]})) || e+=("license is empty")
 	[[ $homepage == https://* || $homepage == http://* ]] || e+=("homepage must be a URL")
-	[[ -f $BROOM_HOME/buildtypes/$build_type.sh ]] || e+=("unknown build_type '$build_type'")
+	[[ -f $BURN_HOME/buildtypes/$build_type.sh ]] || e+=("unknown build_type '$build_type'")
 	if [[ $build_type != meta ]]; then
 		((${#source[@]})) || e+=("no sources")
 	fi
@@ -526,7 +526,7 @@ cmd_lint() {
 }
 
 cmd_checksum() {
-	(($# == 1)) || die "usage: broom checksum [--write] <pkg>"
+	(($# == 1)) || die "usage: burn checksum [--write] <pkg>"
 	recipe_load "$1"
 	features_resolve
 	fetch_sources 0
@@ -558,7 +558,7 @@ cmd_profile() {
 		show) profile_show ;;
 		list) profile_list ;;
 		detect) profile_detect ;;
-		*) die "usage: broom profile [show|list|detect]" ;;
+		*) die "usage: burn profile [show|list|detect]" ;;
 	esac
 }
 
@@ -608,7 +608,7 @@ profile_detect() {
 	esac
 	printf '%-10s %s\n' arch "$arch" model "${model:-unknown}" cpu "${cpu:-unknown}" gpu "${gpu:-unknown}" profile "$suggestion"
 	if [[ $suggestion == native ]]; then
-		printf '\nNo device profile matched. A starting point for /etc/broom/profiles/my-device.profile:\n\n'
+		printf '\nNo device profile matched. A starting point for /etc/burn/profiles/my-device.profile:\n\n'
 		printf 'PROFILE_DESC="My device"\nCARCH=%s\nCPU_FLAGS="%s"\nVIDEO_CARDS="%s"\n' "$arch" "${cpu:-native}" "$gpu"
 	fi
 }

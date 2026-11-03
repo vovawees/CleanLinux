@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Installed-package database ($ROOT/var/lib/broom/installed/<name>/{meta,files,provides-so,needs-so}).
+# Installed-package database ($ROOT/var/lib/burn/installed/<name>/{meta,files,provides-so,needs-so}).
 
 db_has() { [[ -f $DB_DIR/$1/meta ]]; }
 db_get() { sed -n "s/^$2=//p" "$DB_DIR/$1/meta" | head -n1; }
@@ -43,20 +43,20 @@ pkg_install_file() {
 	local -a keep=()
 	mkdir -p "$WORK_DIR"
 	tmp=$(mktemp -d "$WORK_DIR/.install.XXXXXX")
-	zstd -dcq "$file" | tar -xf - -C "$tmp" ./.BROOM
-	name=$(sed -n 's/^name=//p' "$tmp/.BROOM/meta")
-	[[ -n $name ]] || die "$file is not a broom package"
-	ver=$(sed -n 's/^version=//p' "$tmp/.BROOM/meta")-$(sed -n 's/^release=//p' "$tmp/.BROOM/meta")
+	zstd -dcq "$file" | tar -xf - -C "$tmp" ./.BURN
+	name=$(sed -n 's/^name=//p' "$tmp/.BURN/meta")
+	[[ -n $name ]] || die "$file is not a burn package"
+	ver=$(sed -n 's/^version=//p' "$tmp/.BURN/meta")-$(sed -n 's/^release=//p' "$tmp/.BURN/meta")
 	if db_has "$name"; then
 		old=$(db_get "$name" version)-$(db_get "$name" release)
 		old_file=$CACHE_DIR/packages/$name-$old-$(db_get "$name" arch)-$(db_get "$name" buildid).pkg.tar.zst
-		if [[ $(db_get "$name" buildid) == "$(sed -n 's/^buildid=//p' "$tmp/.BROOM/meta")" && $FORCE == 0 && $REBUILD == 0 ]]; then
+		if [[ $(db_get "$name" buildid) == "$(sed -n 's/^buildid=//p' "$tmp/.BURN/meta")" && $FORCE == 0 && $REBUILD == 0 ]]; then
 			msg2 "$name $ver is already installed"
 			rm -rf "$tmp"
 			return 0
 		fi
 	fi
-	conflicts=$(db_conflicts "$name" "$tmp/.BROOM/files")
+	conflicts=$(db_conflicts "$name" "$tmp/.BURN/files")
 	if [[ -n $conflicts ]]; then
 		printf '%s\n' "$conflicts" | head -n 20 >&2
 		((FORCE)) || die "$name: file conflicts with installed packages (use --force to overwrite)"
@@ -72,7 +72,7 @@ pkg_install_file() {
 	fi
 	# config protection: never overwrite existing files listed in backup=()
 	# shellcheck disable=SC2013 # backup= holds space separated paths
-	for b in $(sed -n 's/^backup=//p' "$tmp/.BROOM/meta"); do
+	for b in $(sed -n 's/^backup=//p' "$tmp/.BURN/meta"); do
 		if [[ -e $R/$b ]]; then
 			mkdir -p "$tmp/keep/${b%/*}"
 			cp -a "$R/$b" "$tmp/keep/$b"
@@ -80,22 +80,22 @@ pkg_install_file() {
 		fi
 	done
 	mkdir -p "$ROOT"
-	zstd -dcq "$file" | tar -xpf - -C "$ROOT" --keep-directory-symlink --no-overwrite-dir --exclude=./.BROOM
+	zstd -dcq "$file" | tar -xpf - -C "$ROOT" --keep-directory-symlink --no-overwrite-dir --exclude=./.BURN
 	for b in "${keep[@]}"; do
 		if ! cmp -s "$tmp/keep/$b" "$R/$b"; then
-			mv -f "$R/$b" "$R/$b.broomnew"
+			mv -f "$R/$b" "$R/$b.burnnew"
 			cp -a "$tmp/keep/$b" "$R/$b"
-			warn "kept your /$b; the new default is /$b.broomnew"
+			warn "kept your /$b; the new default is /$b.burnnew"
 		fi
 	done
 	if [[ -n $old ]]; then
-		remove_obsolete "$name" "$DB_DIR/$name/files" "$tmp/.BROOM/files" "$tmp/.BROOM/preserved"
-		[[ -f $DB_DIR/$name/preserved ]] && cat "$DB_DIR/$name/preserved" >>"$tmp/.BROOM/preserved"
-		LC_ALL=C comm -23 "$DB_DIR/$name/provides-so" "$tmp/.BROOM/provides-so" >>"$WORK_DIR/.lost-sonames"
+		remove_obsolete "$name" "$DB_DIR/$name/files" "$tmp/.BURN/files" "$tmp/.BURN/preserved"
+		[[ -f $DB_DIR/$name/preserved ]] && cat "$DB_DIR/$name/preserved" >>"$tmp/.BURN/preserved"
+		LC_ALL=C comm -23 "$DB_DIR/$name/provides-so" "$tmp/.BURN/provides-so" >>"$WORK_DIR/.lost-sonames"
 	fi
 	mkdir -p "$DB_DIR"
 	rm -rf "${DB_DIR:?}/$name"
-	cp -a "$tmp/.BROOM" "$DB_DIR/$name"
+	cp -a "$tmp/.BURN" "$DB_DIR/$name"
 	rm -rf "$tmp"
 	if [[ -n $old ]]; then
 		history_add "${TXN_OP:-upgrade}" "$name" "$old" "$ver" "$old_file"
@@ -155,8 +155,8 @@ pkg_remove() {
 	while IFS= read -r f; do
 		[[ -n $f && $f != */ ]] || continue
 		if in_list "$f" "${backups[@]}" && [[ -e $R/$f ]]; then
-			mv -f "$R/$f" "$R/$f.broomsave"
-			warn "saved /$f as /$f.broomsave"
+			mv -f "$R/$f" "$R/$f.burnsave"
+			warn "saved /$f as /$f.burnsave"
 		else
 			rm -f "$R/$f"
 		fi

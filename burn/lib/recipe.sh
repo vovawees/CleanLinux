@@ -104,7 +104,7 @@ recipe_buildid() {
 }
 
 package_features() {
-	local f=${ROOT%/}/etc/broom/package.features pkg rest
+	local f=${ROOT%/}/etc/burn/package.features pkg rest
 	[[ -f $f ]] || return 0
 	while read -r pkg rest; do
 		[[ $pkg == "$1" ]] && printf '%s\n' "$rest"
@@ -112,7 +112,7 @@ package_features() {
 	return 0
 }
 
-# features=(+on -off off) in the recipe; overrides: profile, broom.conf, package.features, --features
+# features=(+on -off off) in the recipe; overrides: profile, burn.conf, package.features, --features
 features_resolve() {
 	declare -gA FEAT=()
 	local f v tok

@@ -4,7 +4,7 @@
 
 ## Сделано
 
-- [x] `broom`: рецепты, features, профили, сборка в кеш, установка в любой корень, база пакетов, конфликты, `backup`
+- [x] `burn`: рецепты, features, профили, сборка в кеш, установка в любой корень, база пакетов, конфликты, `backup`
 - [x] rolling release+++: `plan`, сборка до установки, хуки (btrfs-снимок), preserved libs, ABI-пересборка, `hold`, `rollback`, `history`, `doctor`
 - [x] профили: `native`, `generic-x86_64`, `generic-aarch64`, Steam Deck, ROG Ally, Mangmi Air X, Raspberry Pi 5, RK3566, ASUS X540YA
 - [x] рецепты базовой системы: GCC 16, glibc 2.44, binutils 2.47, Linux 7.3, bash, coreutils, util-linux, dinit, …
@@ -27,11 +27,11 @@
 - [ ] Steam: multilib (32-bit glibc/mesa для x86_64), Proton; на arm64 — FEX-Emu/Box64
 - [ ] контроллеры, датчики, управление питанием для handheld-профилей
 
-## Дальше: broom
+## Дальше: burn
 
 - [ ] split-пакеты (например, `gcc-libs` отдельно от компилятора)
 - [ ] сборка от непривилегированного пользователя, изоляция сборки (namespaces, без сети)
 - [ ] каналы `edge` и `security`, подписи коммитов репозитория рецептов
 - [ ] бинарный кеш *своих* сборок между своими устройствами (не публичный репозиторий бинарников)
 - [ ] mold/lld, PGO для тяжёлых пакетов, опциональный Clang-тулчейн
-- [ ] рецепт самого broom в CleanLinux-Recipes
+- [ ] рецепт самого burn в CleanLinux-Recipes

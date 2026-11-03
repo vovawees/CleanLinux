@@ -4,10 +4,10 @@
 # Usage: tests/smoke.sh [RECIPES_DIR]  (default: ../CleanLinux-Recipes/packages)
 # shellcheck source=tests/lib.sh
 . "${BASH_SOURCE[0]%/*}/lib.sh"
-RECIPES=$(readlink -f "${1:-${BROOM_RECIPES:-$TESTS/../../CleanLinux-Recipes/packages}}")
+RECIPES=$(readlink -f "${1:-${BURN_RECIPES:-$TESTS/../../CleanLinux-Recipes/packages}}")
 [[ -d $RECIPES ]] || fail "recipes not found: $RECIPES"
-printf 'ASSUME_INSTALLED=(glibc)\nLOCALES=""\n' >"$T/broom.conf"
-b() { "$BROOM" -r "$ROOTFS" -R "$RECIPES" -c "$T/broom.conf" --host-deps --yes "$@"; }
+printf 'ASSUME_INSTALLED=(glibc)\nLOCALES=""\n' >"$T/burn.conf"
+b() { "$BURN" -r "$ROOTFS" -R "$RECIPES" -c "$T/burn.conf" --host-deps --yes "$@"; }
 export LD_LIBRARY_PATH=$ROOTFS/usr/lib
 
 step "lint every recipe"

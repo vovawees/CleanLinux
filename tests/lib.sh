@@ -2,10 +2,10 @@
 # Shared helpers for the test scripts.
 set -euo pipefail
 TESTS=$(cd "${BASH_SOURCE[0]%/*}" && pwd)
-BROOM=$TESTS/../broom/broom
-T=$(mktemp -d "${TMPDIR:-/tmp}/broom-test.XXXXXX")
+BURN=$TESTS/../burn/burn
+T=$(mktemp -d "${TMPDIR:-/tmp}/burn-test.XXXXXX")
 ROOTFS=$T/root
-export BROOM_CACHE=${BROOM_CACHE:-$T/cache}
+export BURN_CACHE=${BURN_CACHE:-$T/cache}
 export NO_COLOR=1
 cleanup() {
 	local rc=$?

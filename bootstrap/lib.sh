@@ -45,7 +45,7 @@ unpack() {
 	[[ -f $SRCDIR/$1/.dir ]] && d=$(<"$SRCDIR/$1/.dir")
 	if [[ -z $d || ! -d $d ]]; then
 		rm -rf "${SRCDIR:?}/$1"
-		d=$(broom unpack "$1" "$SRCDIR/$1") || die "unpacking $1 failed, see $SRCDIR/$1/unpack.log"
+		d=$(burn unpack "$1" "$SRCDIR/$1") || die "unpacking $1 failed, see $SRCDIR/$1/unpack.log"
 		[[ -d $d ]] || die "unpacking $1 printed no source directory"
 		printf '%s\n' "$d" >"$SRCDIR/$1/.dir"
 	fi
@@ -90,7 +90,7 @@ gcc_arch_args() {
 cross_gcc_pass1() {
 	local src glibc_ver
 	src=$(unpack gcc)
-	glibc_ver=$(broom query glibc version)
+	glibc_ver=$(burn query glibc version)
 	rm -rf "$OBJ/gcc1" && mkdir -p "$OBJ/gcc1" && cd "$OBJ/gcc1"
 	# shellcheck disable=SC2046
 	"$src/configure" --prefix="$TOOLS" --target="$TRIPLE" --with-sysroot="$ROOTFS" \
@@ -206,12 +206,12 @@ stage_toolchain() {
 }
 
 base_install() {
-	mkdir -p "$ROOTFS/etc/broom"
-	printf 'PROFILE=%s\n' "$PROFILE" >"$ROOTFS/etc/broom/broom.conf"
+	mkdir -p "$ROOTFS/etc/burn"
+	printf 'PROFILE=%s\n' "$PROFILE" >"$ROOTFS/etc/burn/burn.conf"
 	# glibc and the kernel headers again, this time as tracked packages built with the profile flags
-	broom -r "$ROOTFS" --host-deps -y install filesystem linux-headers glibc
-	broom -r "$ROOTFS" --host-deps -y install base
-	broom -r "$ROOTFS" doctor
+	burn -r "$ROOTFS" --host-deps -y install filesystem linux-headers glibc
+	burn -r "$ROOTFS" --host-deps -y install base
+	burn -r "$ROOTFS" doctor
 }
 
 stage_base() {
@@ -220,14 +220,14 @@ stage_base() {
 	step 80-base base_install
 }
 
-install_broom() {
-	local dst=$ROOTFS/usr/lib/broom
-	rm -rf "$dst" && mkdir -p "$dst" "$ROOTFS/usr/share/broom" "$ROOTFS/etc/broom/hooks/pre-update.d"
-	cp -r "$TOP/broom/broom" "$TOP/broom/lib" "$TOP/broom/buildtypes" "$dst/"
-	cp -r "$TOP/profiles" "$ROOTFS/usr/share/broom/"
-	cp "$TOP/broom/broom.conf" "$ROOTFS/usr/share/broom/broom.conf.example"
-	cp "$TOP/broom/hooks/pre-update.d/"* "$ROOTFS/etc/broom/hooks/pre-update.d/"
-	ln -sfn ../lib/broom/broom "$ROOTFS/usr/bin/broom"
+install_burn() {
+	local dst=$ROOTFS/usr/lib/burn
+	rm -rf "$dst" && mkdir -p "$dst" "$ROOTFS/usr/share/burn" "$ROOTFS/etc/burn/hooks/pre-update.d"
+	cp -r "$TOP/burn/burn" "$TOP/burn/lib" "$TOP/burn/buildtypes" "$dst/"
+	cp -r "$TOP/profiles" "$ROOTFS/usr/share/burn/"
+	cp "$TOP/burn/burn.conf" "$ROOTFS/usr/share/burn/burn.conf.example"
+	cp "$TOP/burn/hooks/pre-update.d/"* "$ROOTFS/etc/burn/hooks/pre-update.d/"
+	ln -sfn ../lib/burn/burn "$ROOTFS/usr/bin/burn"
 }
 
 rootfs_test() {
@@ -241,7 +241,7 @@ rootfs_test() {
 			$s mount -t proc proc "$ROOTFS/proc"
 			set +e
 			# shellcheck disable=SC2016
-			out=$($s chroot "$ROOTFS" /usr/bin/bash -c '. /etc/profile; echo "bash $BASH_VERSION"; ls /; zstd --version; broom --version; broom list | wc -l; broom doctor')
+			out=$($s chroot "$ROOTFS" /usr/bin/bash -c '. /etc/profile; echo "bash $BASH_VERSION"; ls /; zstd --version; burn --version; burn list | wc -l; burn doctor')
 			rc=$?
 			set -e
 			$s umount "$ROOTFS/proc" "$ROOTFS/dev"
@@ -268,8 +268,8 @@ make_tarball() {
 stage_image() {
 	info "== stage image"
 	[[ -f $STAMPS/80-base ]] || die "run the base stage first"
-	rm -f "$STAMPS/90-broom" "$STAMPS/91-rootfs-test" "$STAMPS/99-tarball"
-	step 90-broom install_broom
+	rm -f "$STAMPS/90-burn" "$STAMPS/91-rootfs-test" "$STAMPS/99-tarball"
+	step 90-burn install_burn
 	step 91-rootfs-test rootfs_test
 	step 99-tarball make_tarball
 }

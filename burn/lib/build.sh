@@ -56,9 +56,9 @@ build_pkg() {
 			printf '%s\n' "$out"
 			exit 0
 		fi
-		[[ -f $BROOM_HOME/buildtypes/$build_type.sh ]] || die "$name: unknown build_type '$build_type'"
+		[[ -f $BURN_HOME/buildtypes/$build_type.sh ]] || die "$name: unknown build_type '$build_type'"
 		# shellcheck source=/dev/null
-		. "$BROOM_HOME/buildtypes/$build_type.sh"
+		. "$BURN_HOME/buildtypes/$build_type.sh"
 		local how=native
 		((CROSS)) && how=cross
 		msg "Building $name $version-$release ($CHOST, $how, $build_type)"
@@ -68,7 +68,7 @@ build_pkg() {
 		rm -rf "$WORK"
 		mkdir -p "$WORK" "$BUILD" "$DESTDIR" "${LOG%/*}"
 		{
-			echo "# broom $BROOM_VERSION: $name $version-$release, $(date -u)"
+			echo "# burn $BURN_VERSION: $name $version-$release, $(date -u)"
 			echo "# CHOST=$CHOST CC=$CC"
 			echo "# CFLAGS=$CFLAGS"
 			echo "# LDFLAGS=$LDFLAGS"
@@ -96,7 +96,7 @@ build_pkg() {
 		mkdir -p "${out%/*}"
 		(cd "$DESTDIR" && LC_ALL=C tar --sort=name --numeric-owner --owner=0 --group=0 -cf - .) | $PKG_COMPRESS >"$out.part"
 		mv -f "$out.part" "$out"
-		msg2 "package ${out##*/} ($(du -h "$out" | cut -f1), $(grep -vc '/$' "$DESTDIR/.BROOM/files") files)"
+		msg2 "package ${out##*/} ($(du -h "$out" | cut -f1), $(grep -vc '/$' "$DESTDIR/.BURN/files") files)"
 		[[ ${KEEP_WORK:-0} == 1 ]] || rm -rf "$WORK"
 		printf '%s\n' "$out"
 	)
@@ -171,7 +171,7 @@ strip_tree() {
 }
 
 pkg_write_meta() {
-	local m=$DESTDIR/.BROOM
+	local m=$DESTDIR/.BURN
 	mkdir -p "$m"
 	{
 		printf 'name=%s\nversion=%s\nrelease=%s\narch=%s\nchost=%s\n' "$name" "$version" "$release" "$CARCH" "$CHOST"
@@ -180,7 +180,7 @@ pkg_write_meta() {
 		printf 'features=%s\nbackup=%s\n' "$(features_string)" "${backup[*]}"
 		printf 'cflags=%s\nldflags=%s\nbuilddate=%s\n' "$CFLAGS" "$LDFLAGS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	} >"$m/meta"
-	(cd "$DESTDIR" && find . -mindepth 1 \( -path ./.BROOM -prune \) -o \( -type d -printf '%P/\n' \) -o -printf '%P\n') |
+	(cd "$DESTDIR" && find . -mindepth 1 \( -path ./.BURN -prune \) -o \( -type d -printf '%P/\n' \) -o -printf '%P\n') |
 		LC_ALL=C sort >"$m/files"
 	elf_scan "$m"
 }
@@ -195,7 +195,7 @@ elf_scan() {
 		dyn=$(LC_ALL=C "$READELF" -d "$f" 2>/dev/null) || continue
 		sed -n 's/.*(SONAME).*\[\(.*\)\].*/\1/p' <<<"$dyn" >>"$m/provides-so"
 		sed -n 's/.*(NEEDED).*\[\(.*\)\].*/\1/p' <<<"$dyn" >>"$m/needs.tmp"
-	done < <(find "$DESTDIR" -path "$DESTDIR/.BROOM" -prune -o -type f -print0)
+	done < <(find "$DESTDIR" -path "$DESTDIR/.BURN" -prune -o -type f -print0)
 	LC_ALL=C sort -u -o "$m/provides-so" "$m/provides-so"
 	LC_ALL=C sort -u "$m/needs.tmp" | { grep -vxF -f "$m/provides-so" || true; } >"$m/needs-so"
 	rm -f "$m/needs.tmp"

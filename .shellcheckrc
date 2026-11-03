@@ -1,4 +1,4 @@
-# broom is split into many sourced files that share globals on purpose
+# burn is split into many sourced files that share globals on purpose
 disable=SC2034,SC2154,SC2030,SC2031
 # build phases always run in subshells with errexit, a failing cd aborts the phase
 disable=SC2164

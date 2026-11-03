@@ -1,6 +1,6 @@
 #!/bin/sh
-# Rollback point: read-only btrfs snapshot of the root before broom applies an update.
-# Install as /etc/broom/hooks/pre-update.d/10-btrfs-snapshot (executable). A failing
+# Rollback point: read-only btrfs snapshot of the root before burn applies an update.
+# Install as /etc/burn/hooks/pre-update.d/10-btrfs-snapshot (executable). A failing
 # pre-update hook stops the update before anything is changed.
 set -eu
 root=${ROOT:-/}
@@ -8,10 +8,10 @@ command -v btrfs >/dev/null 2>&1 || exit 0
 [ "$(stat -f -c %T "$root")" = btrfs ] || exit 0
 dir=${root%/}/.snapshots
 mkdir -p "$dir"
-name=broom-$(date -u +%Y%m%dT%H%M%SZ)
+name=burn-$(date -u +%Y%m%dT%H%M%SZ)
 btrfs subvolume snapshot -r "$root" "$dir/$name" >/dev/null
 echo "snapshot: $dir/$name"
-keep=${BROOM_SNAPSHOTS_KEEP:-5}
-find "$dir" -mindepth 1 -maxdepth 1 -name 'broom-*' | sort | head -n "-$keep" | while read -r old; do
+keep=${BURN_SNAPSHOTS_KEEP:-5}
+find "$dir" -mindepth 1 -maxdepth 1 -name 'burn-*' | sort | head -n "-$keep" | while read -r old; do
 	btrfs subvolume delete "$old" >/dev/null
 done

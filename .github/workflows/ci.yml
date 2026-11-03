@@ -23,7 +23,7 @@ jobs:
           shellcheck --version
       - name: shellcheck
         run: >
-          shellcheck -x broom/broom broom/lib/*.sh broom/buildtypes/*.sh broom/hooks/*/*
+          shellcheck -x burn/burn burn/lib/*.sh burn/buildtypes/*.sh burn/hooks/*/*
           tests/*.sh bootstrap/*.sh profiles/*.profile profiles/devices/*.profile
 
   tests:

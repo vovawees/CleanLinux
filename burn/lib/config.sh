@@ -2,18 +2,18 @@
 # Configuration defaults, profiles and compiler flags.
 
 config_defaults() {
-	ROOT=${BROOM_ROOT:-/}
+	ROOT=${BURN_ROOT:-/}
 	if [[ $(id -u) == 0 ]]; then
-		CACHE_DIR=${BROOM_CACHE:-/var/cache/broom}
-		WORK_DIR=${BROOM_WORK:-/var/tmp/broom}
+		CACHE_DIR=${BURN_CACHE:-/var/cache/burn}
+		WORK_DIR=${BURN_WORK:-/var/tmp/burn}
 	else
-		CACHE_DIR=${BROOM_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/broom}
-		WORK_DIR=${BROOM_WORK:-$CACHE_DIR/work}
+		CACHE_DIR=${BURN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/burn}
+		WORK_DIR=${BURN_WORK:-$CACHE_DIR/work}
 	fi
 	RECIPE_REPOS=(https://github.com/vovawees/CleanLinux-Recipes.git)
 	RECIPE_PATHS=()
 	CHANNEL=main
-	PROFILE=${BROOM_PROFILE:-native}
+	PROFILE=${BURN_PROFILE:-native}
 	JOBS=$(nproc 2>/dev/null || echo 2)
 	FEATURES=''
 	LOCALES='en ru'
@@ -27,14 +27,14 @@ config_defaults() {
 	KERNEL_MIRROR=https://cdn.kernel.org/pub/linux
 	PKG_COMPRESS='zstd -q -T0 -10'
 	ASSUME_INSTALLED=()
-	ESSENTIAL=(filesystem glibc bash coreutils broom)
+	ESSENTIAL=(filesystem glibc bash coreutils burn)
 	CORE_PKGS=(glibc gcc binutils linux mesa llvm)
 	CHOST=''
 }
 
 config_load() {
 	local f
-	for f in "${ROOT%/}/etc/broom/broom.conf" ${CONFIG_FILE:+"$CONFIG_FILE"}; do
+	for f in "${ROOT%/}/etc/burn/burn.conf" ${CONFIG_FILE:+"$CONFIG_FILE"}; do
 		[[ -f $f ]] || continue
 		# shellcheck source=/dev/null
 		. "$f"
@@ -44,7 +44,7 @@ config_load() {
 
 profile_dirs() {
 	local d
-	for d in ${BROOM_PROFILE_DIR:+"$BROOM_PROFILE_DIR"} "${ROOT%/}/etc/broom/profiles" "$BROOM_HOME/../profiles" /usr/share/broom/profiles; do
+	for d in ${BURN_PROFILE_DIR:+"$BURN_PROFILE_DIR"} "${ROOT%/}/etc/burn/profiles" "$BURN_HOME/../profiles" /usr/share/burn/profiles; do
 		[[ -d $d ]] && readlink -f "$d"
 	done | awk '!seen[$0]++'
 }
@@ -94,7 +94,7 @@ inherit() {
 profile_load() {
 	CARCH=$(uname -m) CPU_FLAGS=native VIDEO_CARDS='' PROFILE_FEATURES='' PROFILE_DESC=''
 	EXTRA_CFLAGS='' EXTRA_LDFLAGS='' KERNEL_CMDLINE='' KERNEL_CONFIG=''
-	PROFILE_FILE=$(profile_find "$PROFILE") || die "profile '$PROFILE' not found (see: broom profile list)"
+	PROFILE_FILE=$(profile_find "$PROFILE") || die "profile '$PROFILE' not found (see: burn profile list)"
 	# shellcheck source=/dev/null
 	. "$PROFILE_FILE"
 	PROFILE_ARCH=$CARCH

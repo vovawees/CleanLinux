@@ -3,8 +3,8 @@
 CleanLinux — дистрибутив из трёх частей:
 
 ```
-CleanLinux-Recipes  ──►  broom  ──►  система на устройстве
- (ссылки + рецепты)      (сборка,     /usr, /etc, /var/lib/broom
+CleanLinux-Recipes  ──►  burn  ──►  система на устройстве
+ (ссылки + рецепты)      (сборка,     /usr, /etc, /var/lib/burn
                           установка,
  profiles/ ─────────────► обновления)
  (железо пользователя)
@@ -12,7 +12,7 @@ CleanLinux-Recipes  ──►  broom  ──►  система на устро�
 
 1. **Рецепты** ([CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes)) — что собирать: ссылка на исходник upstream, sha256, тип сборки, зависимости, features. Бинарников там нет и не будет.
 2. **Профиль** (`profiles/`) — под что собирать: архитектура, флаги CPU, драйверы GPU, параметры ядра, набор features.
-3. **broom** (`broom/`) — как собирать и ставить: скачивание и проверка, сборка в кеш, установка, база пакетов, обновления rolling release+++.
+3. **burn** (`burn/`) — как собирать и ставить: скачивание и проверка, сборка в кеш, установка, база пакетов, обновления rolling release+++.
 4. **bootstrap** (`bootstrap/`) — как получить первую систему, когда ещё ничего нет.
 
 ## Базовые решения
@@ -27,22 +27,22 @@ CleanLinux-Recipes  ──►  broom  ──►  система на устро�
 | **zlib-ng, zstd** | zlib-ng — та же ABI, что у zlib, но с SIMD на x86_64 и arm64. zstd — для пакетов (`.tar.zst`) и сжатия btrfs. |
 | **btrfs + zstd** (рекомендация) | Снимки перед каждым обновлением (`hooks/pre-update.d/10-btrfs-snapshot`), прозрачное сжатие — меньше места на маленьких eMMC/SD. |
 | **Свой triple** | `x86_64-cleanlinux-linux-gnu`, `aarch64-cleanlinux-linux-gnu` — тулчейн никогда не перепутает систему с хостом. |
-| **bash для broom** | Ноль зависимостей: broom работает на любом хосте с bash, coreutils, tar, zstd и git — значит, и во время bootstrap. |
+| **bash для burn** | Ноль зависимостей: burn работает на любом хосте с bash, coreutils, tar, zstd и git — значит, и во время bootstrap. |
 
-## broom
+## burn
 
 ```
-broom/broom             точка входа, разбор опций
-broom/lib/config.sh     broom.conf, профиль, флаги компилятора, тулчейн (native/cross)
-broom/lib/recipe.sh     загрузка рецептов, features, условные зависимости, lint
-broom/lib/fetch.sh      скачивание (зеркала gnu://, kernel://), sha256, распаковка, патчи
-broom/lib/build.sh      сборка в DESTDIR, чистка, strip, упаковка в .tar.zst, BUILDID
-broom/lib/db.sh         база установленных пакетов, установка/удаление, конфликты, история
-broom/lib/deps.sh       порядок зависимостей
-broom/lib/update.sh     sync, plan, update, ABI-follow-up, doctor
-broom/lib/cli.sh        команды
-broom/buildtypes/*.sh   autotools, meson, cmake, make, cargo, python, custom, meta
-broom/hooks/            хуки (снимок btrfs перед обновлением)
+burn/burn             точка входа, разбор опций
+burn/lib/config.sh     burn.conf, профиль, флаги компилятора, тулчейн (native/cross)
+burn/lib/recipe.sh     загрузка рецептов, features, условные зависимости, lint
+burn/lib/fetch.sh      скачивание (зеркала gnu://, kernel://), sha256, распаковка, патчи
+burn/lib/build.sh      сборка в DESTDIR, чистка, strip, упаковка в .tar.zst, BUILDID
+burn/lib/db.sh         база установленных пакетов, установка/удаление, конфликты, история
+burn/lib/deps.sh       порядок зависимостей
+burn/lib/update.sh     sync, plan, update, ABI-follow-up, doctor
+burn/lib/cli.sh        команды
+burn/buildtypes/*.sh   autotools, meson, cmake, make, cargo, python, custom, meta
+burn/hooks/            хуки (снимок btrfs перед обновлением)
 ```
 
 ### Конвейер сборки
@@ -58,9 +58,9 @@ broom/hooks/            хуки (снимок btrfs перед обновлен
 
 1. значения по умолчанию в рецепте: `features=(+wayland -x11)`
 2. профиль: `PROFILE_FEATURES`
-3. `/etc/broom/broom.conf`: `FEATURES="-nls x11"`
-4. `/etc/broom/package.features`: `mesa -x11 +vulkan`
-5. командная строка: `broom -f "x11" install ...`
+3. `/etc/burn/burn.conf`: `FEATURES="-nls x11"`
+4. `/etc/burn/package.features`: `mesa -x11 +vulkan`
+5. командная строка: `burn -f "x11" install ...`
 
 Зависимость `pkg:feat` нужна только при включённой feature, `pkg:!feat` — только при выключенной. Для meson по умолчанию `--auto-features=disabled`: сборка не зависит от того, что «случайно нашлось» в системе.
 
@@ -73,7 +73,7 @@ broom/hooks/            хуки (снимок btrfs перед обновлен
 
 ### Корни и кросс-компиляция
 
-- `broom -r /mnt/root install …` — установка в другой корень (с проверкой конфликтов, базой пакетов и историей внутри него).
+- `burn -r /mnt/root install …` — установка в другой корень (с проверкой конфликтов, базой пакетов и историей внутри него).
 - В режиме *staging root* (корень ≠ `/`, без кросса) заголовки и библиотеки берутся из корня: `-isystem`, `-L`, `-Wl,-rpath-link`, `PKG_CONFIG_PATH`.
 - `--target aarch64-cleanlinux-linux-gnu` — кросс-сборка: корень одновременно sysroot тулчейна, так что всё линкуется ровно с той glibc, с которой будет работать.
 - `--host-deps` — инструменты сборки (meson, cmake, …) берутся с хоста, их `makedepends` не ставятся в корень.
@@ -82,15 +82,15 @@ broom/hooks/            хуки (снимок btrfs перед обновлен
 
 | Путь | Что там |
 |---|---|
-| `/etc/broom/broom.conf` | настройки (см. `broom/broom.conf`) |
-| `/etc/broom/package.features` | features для отдельных пакетов |
-| `/etc/broom/hold` | замороженные пакеты |
-| `/etc/broom/profiles/` | свои профили (ищутся первыми) |
-| `/etc/broom/hooks/{pre,post}-update.d/` | хуки обновления |
-| `/var/lib/broom/installed/<pkg>/` | `meta`, `files`, `provides-so`, `needs-so`, `preserved` |
-| `/var/lib/broom/state/history` | журнал транзакций |
-| `/var/lib/broom/repos/` | git-клоны репозиториев рецептов |
-| `/var/cache/broom/` | исходники и собранные пакеты (для отката) |
+| `/etc/burn/burn.conf` | настройки (см. `burn/burn.conf`) |
+| `/etc/burn/package.features` | features для отдельных пакетов |
+| `/etc/burn/hold` | замороженные пакеты |
+| `/etc/burn/profiles/` | свои профили (ищутся первыми) |
+| `/etc/burn/hooks/{pre,post}-update.d/` | хуки обновления |
+| `/var/lib/burn/installed/<pkg>/` | `meta`, `files`, `provides-so`, `needs-so`, `preserved` |
+| `/var/lib/burn/state/history` | журнал транзакций |
+| `/var/lib/burn/repos/` | git-клоны репозиториев рецептов |
+| `/var/cache/burn/` | исходники и собранные пакеты (для отката) |
 
 ## Профили
 
@@ -105,7 +105,7 @@ VIDEO_CARDS=freedreno
 PROFILE_FEATURES+=" gaming handheld battery"
 ```
 
-Переменные: `CARCH`, `CPU_FLAGS`, `VIDEO_CARDS`, `PROFILE_FEATURES`, `KERNEL_CMDLINE`, `KERNEL_CONFIG` (фрагмент конфигурации ядра). Профиль `native` определяет CPU и GPU сам (`-march=native`/`-mcpu=native`, видеокарты по `/sys`), `broom profile detect` подбирает готовый профиль устройства или печатает заготовку для `/etc/broom/profiles/`.
+Переменные: `CARCH`, `CPU_FLAGS`, `VIDEO_CARDS`, `PROFILE_FEATURES`, `KERNEL_CMDLINE`, `KERNEL_CONFIG` (фрагмент конфигурации ядра). Профиль `native` определяет CPU и GPU сам (`-march=native`/`-mcpu=native`, видеокарты по `/sys`), `burn profile detect` подбирает готовый профиль устройства или печатает заготовку для `/etc/burn/profiles/`.
 
 ## Bootstrap
 
@@ -114,7 +114,7 @@ PROFILE_FEATURES+=" gaming handheld battery"
 | Этап | Шаги |
 |---|---|
 | `toolchain` | проверка хоста → скелет rootfs (merged `/usr`) → кросс-binutils → GCC pass 1 (без libc) → заголовки Linux → glibc → финальный GCC (C, C++) → runtime-библиотеки GCC в rootfs → тест (hello на C/C++, запуск через ld.so из rootfs или qemu) |
-| `base` | `broom --target <triple> install filesystem linux-headers glibc`, затем `base`; `broom doctor` |
-| `image` | broom внутри rootfs, проверка через chroot/qemu, архив rootfs `.tar.zst` |
+| `base` | `burn --target <triple> install filesystem linux-headers glibc`, затем `base`; `burn doctor` |
+| `image` | burn внутри rootfs, проверка через chroot/qemu, архив rootfs `.tar.zst` |
 
-Все исходники берутся через `broom unpack` из тех же рецептов, что и у обычных пакетов, — у тулчейна нет отдельных «волшебных» версий. Каждый шаг пишет лог и отметку, повторный запуск продолжает с места остановки. rootfs — это и sysroot кросс-тулчейна, поэтому в образ не попадает ничего с хоста.
+Все исходники берутся через `burn unpack` из тех же рецептов, что и у обычных пакетов, — у тулчейна нет отдельных «волшебных» версий. Каждый шаг пишет лог и отметку, повторный запуск продолжает с места остановки. rootfs — это и sysroot кросс-тулчейна, поэтому в образ не попадает ничего с хоста.

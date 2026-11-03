@@ -5,9 +5,9 @@
 
 *English summary [below](#english).*
 
-> **Статус: pre-alpha.** Уже работают пакетный менеджер `broom`, профили железа, рецепты базовой системы и bootstrap с нуля.
+> **Статус: pre-alpha.** Уже работают пакетный менеджер `burn`, профили железа, рецепты базовой системы и bootstrap с нуля.
 > Проверено: x86_64 (`generic-x86_64`) и arm64 (`mangmi-air-x`) собираются от компилятора хоста до rootfs из 21 пакета
-> (GCC 16.2, glibc 2.44, bash, coreutils, util-linux, dinit, …): x86_64 — архив 28 МБ, проверен в chroot (`broom doctor` внутри системы);
+> (GCC 16.2, glibc 2.44, bash, coreutils, util-linux, dinit, …): x86_64 — архив 28 МБ, проверен в chroot (`burn doctor` внутри системы);
 > arm64 — 25 МБ, проверен через qemu-user. Загрузочного образа (ядро + загрузчик) пока нет — см. [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Идея
@@ -26,12 +26,12 @@
 
 Обычный rolling — «обновил всё и надейся». В CleanLinux у обновления есть страховка:
 
-1. **План** — `broom plan` показывает, что обновится, риск (`core` / `major`) и какие пакеты придётся пересобрать.
+1. **План** — `burn plan` показывает, что обновится, риск (`core` / `major`) и какие пакеты придётся пересобрать.
 2. **Сначала сборка, потом установка** — всё собирается в кеш; если хоть что-то не собралось, система не тронута.
 3. **Снимок** — pre-update хуки (btrfs-снимок из коробки).
 4. **ABI-aware** — сменилась soname библиотеки → старая сохраняется (*preserved libs*), зависимые пакеты пересобираются автоматически.
-5. **Проверка** — `broom doctor` ищет пропавшие и устаревшие библиотеки.
-6. **Откат и заморозка** — `broom rollback <pkg>`, `broom hold <pkg>`, журнал `broom history`.
+5. **Проверка** — `burn doctor` ищет пропавшие и устаревшие библиотеки.
+6. **Откат и заморозка** — `burn rollback <pkg>`, `burn hold <pkg>`, журнал `burn history`.
 7. **Каналы** — `main` (прошёл CI), `edge` и `security` *(план)*.
 
 Подробнее: [docs/ROLLING.md](docs/ROLLING.md).
@@ -51,15 +51,15 @@
 | `asus-x540ya` | ASUS X540YA (AMD E2-6110, Radeon R2) | `btver2` | amd (GCN 1.1 через amdgpu) |
 
 ```sh
-broom profile list      # все профили
-broom profile detect    # какой профиль подходит этой машине
-broom profile show      # итоговые CFLAGS, features, драйверы
+burn profile list      # все профили
+burn profile detect    # какой профиль подходит этой машине
+burn profile show      # итоговые CFLAGS, features, драйверы
 ```
 
 ## Структура
 
 ```
-broom/        пакетный менеджер (bash): broom, lib/, buildtypes/, hooks/, broom.conf
+burn/        пакетный менеджер (bash): burn, lib/, buildtypes/, hooks/, burn.conf
 profiles/     профили железа: base, generic-*, native, devices/*
 bootstrap/    сборка системы с нуля: тулчейн → базовая система → образ
 tests/        smoke-тест на настоящих рецептах и тест rolling+++
@@ -68,17 +68,17 @@ docs/         архитектура, rolling+++, рецепты, roadmap
 
 ## Быстрый старт
 
-Попробовать `broom` без root — пакеты ставятся в отдельный корень:
+Попробовать `burn` без root — пакеты ставятся в отдельный корень:
 
 ```sh
 git clone https://github.com/vovawees/CleanLinux
 git clone https://github.com/vovawees/CleanLinux-Recipes
 cd CleanLinux
-alias broom="$PWD/broom/broom -R $PWD/../CleanLinux-Recipes/packages"
+alias burn="$PWD/burn/burn -R $PWD/../CleanLinux-Recipes/packages"
 
-broom search
-broom info zstd
-broom profile detect
+burn search
+burn info zstd
+burn profile detect
 tests/smoke.sh      # собирает и ставит zstd, zlib-ng, xz, lz4, pkgconf в тестовый корень
 tests/rolling.sh    # soname bump, preserved libs, ABI-пересборка, hold, rollback
 ```
@@ -106,9 +106,9 @@ MIT — см. [LICENSE](LICENSE). Пакеты распространяются 
 ## English
 
 **CleanLinux** is an experimental Linux distribution built **from scratch** (not LFS) for handheld consoles and PCs, on **x86_64 and arm64**.
-There are no binary repositories: the [CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes) repository holds only upstream source links, checksums and build recipes (like the AUR, but for the whole system), and the `broom` package manager builds everything locally, tuned by a hardware profile (CPU flags, GPU drivers, kernel options, features).
+There are no binary repositories: the [CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes) repository holds only upstream source links, checksums and build recipes (like the AUR, but for the whole system), and the `burn` package manager builds everything locally, tuned by a hardware profile (CPU flags, GPU drivers, kernel options, features).
 
 - glibc (not musl), GCC 16, merged `/usr`, dinit, Wayland-first; minimal by default (no docs, extra locales or static libraries; LTO).
-- **Rolling release+++**: updates are planned, fully built before anything is installed, snapshotted, ABI-aware (preserved libraries + automatic rebuilds after soname changes), verified with `broom doctor`, and can be rolled back or held per package.
+- **Rolling release+++**: updates are planned, fully built before anything is installed, snapshotted, ABI-aware (preserved libraries + automatic rebuilds after soname changes), verified with `burn doctor`, and can be rolled back or held per package.
 - Cross-first bootstrap: `bootstrap/bootstrap.sh` builds a cross toolchain, glibc and the base system for either architecture from any host.
 - Status: pre-alpha. Verified: x86_64 and arm64 (Mangmi Air X profile) bootstrap from a host compiler to a 21-package rootfs (GCC 16.2, glibc 2.44, dinit, ...), tested in a chroot (x86_64) and under qemu-user (arm64). A bootable image (kernel + bootloader) is next (see [docs/ROADMAP.md](docs/ROADMAP.md)).

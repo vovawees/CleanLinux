@@ -166,7 +166,7 @@ preserved_cleanup() {
 
 run_hooks() {
 	local h
-	for h in "$R/etc/broom/hooks/$1.d"/*; do
+	for h in "$R/etc/burn/hooks/$1.d"/*; do
 		[[ -x $h ]] || continue
 		msg2 "hook $1: ${h##*/}"
 		if ! ROOT=$ROOT "$h"; then

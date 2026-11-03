@@ -2,8 +2,8 @@
 # CleanLinux bootstrap: build the system from source, from nothing but a host compiler.
 #
 #   toolchain  cross binutils -> gcc (pass 1) -> kernel headers -> glibc -> gcc (final)
-#   base       the base system, cross-compiled and installed by broom into the rootfs
-#   image      broom inside the rootfs, chroot/qemu test, rootfs tarball
+#   base       the base system, cross-compiled and installed by burn into the rootfs
+#   image      burn inside the rootfs, chroot/qemu test, rootfs tarball
 #
 # The rootfs doubles as the toolchain sysroot, so every package is built against the exact
 # glibc it will run with. Nothing from the host ends up in the image.
@@ -15,11 +15,11 @@ shopt -s nullglob inherit_errexit
 
 HERE=$(cd "${BASH_SOURCE[0]%/*}" && pwd)
 TOP=$(cd "$HERE/.." && pwd)
-BROOM_BIN=$TOP/broom/broom
+BURN_BIN=$TOP/burn/burn
 # shellcheck source=bootstrap/lib.sh
 . "$HERE/lib.sh"
 
-ARCH='' PROFILE='' WORK='' RECIPES=${BROOM_RECIPES:-} JOBS=$(nproc) VERBOSE=0
+ARCH='' PROFILE='' WORK='' RECIPES=${BURN_RECIPES:-} JOBS=$(nproc) VERBOSE=0
 STAGES=()
 while (($#)); do
 	case $1 in
@@ -40,7 +40,7 @@ done
 ((${#STAGES[@]})) || STAGES=(all)
 
 if [[ -z $ARCH && -n $PROFILE ]]; then
-	ARCH=$(BROOM_RECIPES='' "$BROOM_BIN" -p "$PROFILE" profile show | awk '$1 == "chost" { split($2, a, "-"); print a[1] }')
+	ARCH=$(BURN_RECIPES='' "$BURN_BIN" -p "$PROFILE" profile show | awk '$1 == "chost" { split($2, a, "-"); print a[1] }')
 fi
 ARCH=${ARCH:-$(uname -m)}
 case $ARCH in
@@ -52,7 +52,7 @@ PROFILE=${PROFILE:-generic-$ARCH}
 TRIPLE=$ARCH-cleanlinux-linux-gnu
 WORK=$(readlink -m "${WORK:-$TOP/build/$ARCH}")
 TOOLS=$WORK/tools ROOTFS=$WORK/rootfs SRCDIR=$WORK/src OBJ=$WORK/obj LOGS=$WORK/logs STAMPS=$WORK/stamps
-export BROOM_CACHE=${BROOM_CACHE:-$TOP/build/cache}
+export BURN_CACHE=${BURN_CACHE:-$TOP/build/cache}
 export PATH=$TOOLS/bin:$PATH LC_ALL=C
 unset CFLAGS CXXFLAGS LDFLAGS CPPFLAGS CC CXX
 if [[ -z $RECIPES ]]; then
@@ -67,7 +67,7 @@ fi
 RECIPES=$(readlink -f "$RECIPES")
 mkdir -p "$TOOLS" "$ROOTFS" "$SRCDIR" "$OBJ" "$LOGS" "$STAMPS"
 
-broom() { "$BROOM_BIN" -R "$RECIPES" -p "$PROFILE" --target "$TRIPLE" -j "$JOBS" "$@"; }
+burn() { "$BURN_BIN" -R "$RECIPES" -p "$PROFILE" --target "$TRIPLE" -j "$JOBS" "$@"; }
 
 info "CleanLinux bootstrap: $TRIPLE, profile $PROFILE, $JOBS jobs"
 info "work: $WORK"
