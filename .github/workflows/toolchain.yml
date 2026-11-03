@@ -23,7 +23,7 @@ jobs:
       matrix:
         arch: [x86_64, aarch64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: host tools
         run: |
           sudo apt-get update -qq
@@ -32,7 +32,7 @@ jobs:
       - name: recipes
         run: git clone -q --depth 1 https://github.com/vovawees/CleanLinux-Recipes.git build/recipes
       - name: source cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/cache/sources
           key: sources-${{ hashFiles('build/recipes/packages/*/recipe') }}
@@ -41,13 +41,13 @@ jobs:
         run: bootstrap/bootstrap.sh --arch ${{ matrix.arch }} --recipes build/recipes/packages ${{ inputs.stage }}
       - name: logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-${{ matrix.arch }}
           path: build/${{ matrix.arch }}/logs
       - name: rootfs
         if: success() && inputs.stage == 'all'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rootfs-${{ matrix.arch }}
           path: build/${{ matrix.arch }}/*.tar.zst
