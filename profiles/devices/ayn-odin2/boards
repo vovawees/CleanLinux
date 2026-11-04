@@ -1,0 +1,4 @@
+# no device tree of the Odin 2 in mainline: the SoC's reference boards, only the storage chain
+# (UFS, SD) counts
+ref qcom/sm8550-qrd.dts
+ref qcom/sm8550-hdk.dts

@@ -9,6 +9,8 @@ PROFILE_FEATURES+=" handheld battery"
 # firmware from linux-firmware (paths or name prefixes under /usr/lib/firmware); not yet checked on the device
 # Adreno 650 and the SM8250 DSPs, QCA6390 Wi-Fi (ath11k) + Bluetooth
 FIRMWARE="qcom/a650 qcom/sm8250/ ath11k/QCA6390 qca/htbtfw20 qca/htnv20"
+# the device's own kernel options and quirks: profiles/devices/retroid-pocket-5/ (see HARDWARE.md)
+KERNEL_FRAGMENT="$PROFILE_DIR/retroid-pocket-5/kernel.config"
 # mainline Snapdragon kernels still lack drivers for some clocks and power domains: keep them on
 KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 # ABL (the Android boot loader) boots an Android boot image from the boot partition:

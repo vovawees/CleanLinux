@@ -8,3 +8,5 @@ PROFILE_FEATURES+=" handheld battery"
 # firmware from linux-firmware (paths or name prefixes under /usr/lib/firmware); not yet checked on the device
 # Strix Point GPU (GC 11.5.0), MediaTek MT7925 Wi-Fi + Bluetooth
 FIRMWARE="amdgpu/gc_11_5_0 amdgpu/psp_14_0_0 amdgpu/dcn_3_5_dmcub amdgpu/vcn_4_0_5 amdgpu/sdma_6_1_0 amdgpu/vpe_6_1 amd-ucode/ mediatek/mt7925"
+# the device's own kernel options and quirks: profiles/devices/rog-xbox-ally-x/ (see HARDWARE.md)
+KERNEL_FRAGMENT="$PROFILE_DIR/rog-xbox-ally-x/kernel.config"

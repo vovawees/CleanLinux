@@ -1,0 +1,3 @@
+# no device tree of the Retroid Pocket 5 in mainline: the SoC's reference board, only the storage
+# chain (UFS, SD) counts
+ref qcom/sm8250-hdk.dts

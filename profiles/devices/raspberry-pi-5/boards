@@ -1,0 +1,6 @@
+# the device trees this profile covers (arch/arm64/boot/dts/...); the root: SD, NVMe (PCIe), USB
+root mmc,pci,usb
+# the legacy system timer: arm64 runs on the architected timer (BCM2835_TIMER is arm32 only)
+ignore brcm,bcm2835-system-timer
+broadcom/bcm2712-rpi-5-b.dts
+broadcom/bcm2712-d-rpi-5-b.dts

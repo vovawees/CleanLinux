@@ -9,6 +9,8 @@ PROFILE_FEATURES+=" handheld battery"
 # firmware from linux-firmware (paths or name prefixes under /usr/lib/firmware); not yet checked on the device
 # Adreno 740 and the SM8550 DSPs, WCN7850 Wi-Fi 7 (ath12k) + Bluetooth
 FIRMWARE="qcom/gmu_gen70200 qcom/a740 qcom/sm8550/ ath12k/WCN7850 qca/hmtbtfw20 qca/hmtnv20"
+# the device's own kernel options and quirks: profiles/devices/ayn-odin2/ (see HARDWARE.md)
+KERNEL_FRAGMENT="$PROFILE_DIR/ayn-odin2/kernel.config"
 # mainline Snapdragon kernels still lack drivers for some clocks and power domains: keep them on
 KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 # ABL (the Android boot loader) boots an Android boot image from the boot partition:

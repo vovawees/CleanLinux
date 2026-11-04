@@ -1,0 +1,14 @@
+# the device trees this profile covers (arch/arm64/boot/dts/...), checked by tests/kernel-config.sh
+# with tools/dt-kconfig.py: every enabled node has a driver, the SD card and eMMC are built in
+rockchip/rk3566-anbernic-rg-arc-d.dts
+rockchip/rk3566-anbernic-rg-arc-s.dts
+rockchip/rk3566-anbernic-rg353p.dts
+rockchip/rk3566-anbernic-rg353ps.dts
+rockchip/rk3566-anbernic-rg353v.dts
+rockchip/rk3566-anbernic-rg353vs.dts
+rockchip/rk3566-anbernic-rg503.dts
+rockchip/rk3566-powkiddy-rgb10max3.dts
+rockchip/rk3566-powkiddy-rgb20sx.dts
+rockchip/rk3566-powkiddy-rgb30.dts
+rockchip/rk3566-powkiddy-rk2023.dts
+rockchip/rk3566-powkiddy-x55.dts

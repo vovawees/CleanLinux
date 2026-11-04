@@ -93,8 +93,10 @@ burn profile show      # итоговые CFLAGS, features, драйверы
 ```
 profiles/     профили железа: base, generic-*, native, devices/*
 bootstrap/    сборка системы с нуля: тулчейн → базовая система → образ (burn для хоста — host-burn.sh)
-tests/        smoke-тест на настоящих рецептах, rolling+++, загрузка и установка образа в QEMU (boot.py, install.py)
-tools/        локальные проверки (check.sh, hooks/pre-push), источник пакета профилей (profiles-tarball.sh)
+tests/        smoke-тест на настоящих рецептах, rolling+++, параметры ядра профилей (kernel-config.sh),
+              загрузка и установка образа в QEMU (boot.py, install.py)
+tools/        локальные проверки (check.sh, hooks/pre-push), источник пакета профилей (profiles-tarball.sh),
+              драйверы по device tree (dt-kconfig.py)
 docs/         архитектура, rolling+++, рецепты, roadmap
 ```
 

@@ -163,7 +163,7 @@ KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 | `KERNEL_CONFIG`, `KERNEL_FRAGMENT` | полный конфиг ядра вместо defconfig; фрагмент устройства, накладывается последним |
 | `KERNEL_CMDLINE` | параметры ядра устройства (пакет `hardware` кладёт их в `/usr/lib/kernel/cmdline.d/`) |
 | `FIRMWARE` | firmware устройства из linux-firmware (пусто — всё) |
-| `MODULES`, `QUIRKS` | модули для загрузки при старте; дерево `udev/rules.d`, `hwdb.d`, `modprobe.d`, `sysctl.d` устройства |
+| `MODULES`, `QUIRKS` | модули для загрузки при старте; дерево устройства, устроенное как `/usr/lib`: `udev/rules.d`, `udev/hwdb.d`, `modprobe.d`, `sysctl.d`, `cleanlinux/initramfs.d` (`libinput/` — в `/usr/share/libinput`) |
 | `BOOTLOADER`, `DEVICE_TREE` | чем грузится устройство (`systemd-boot`, `extlinux`, `rpi`, `android`) и его device tree (`vendor/board.dtb` или `vendor/`); пакет `hardware` пишет их в `/usr/lib/cleanlinux/boot.d/` |
 | `PROFILE_FEATURES` | аппаратные features (`handheld`, `battery`), не программный стек |
 
@@ -172,6 +172,12 @@ KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 берёт архитектуру и видеокарты машины (`HOST_ARCH`, `HOST_VIDEO_CARDS` — их определяет burn по
 `/sys/class/drm`), `burn profile detect` подбирает профиль устройства по DMI и device tree или печатает
 заготовку для `/etc/burn/profiles/`. Что проверено на каком профиле — [HARDWARE.md](HARDWARE.md).
+
+Свои файлы устройство держит в `profiles/devices/<имя>/`: `kernel.config` (`KERNEL_FRAGMENT`), `quirks/`
+(`QUIRKS`) и `boards` — его device tree. `tests/kernel-config.sh` прогоняет `do_configure` рецепта `linux`
+для каждого профиля и проверяет, что каждый параметр фрагмента дошёл до `.config`, а `tools/dt-kconfig.py`
+по device tree плат — что у каждого узла есть драйвер и что цепочка накопителя корня собрана в ядро
+(подробно — в [HARDWARE.md](HARDWARE.md#каталог-устройства)).
 
 Профили приходят в систему пакетом `cleanlinux-profiles` (входит в `base`), новые устройства — обычным
 `burn update`. Его исходник — архив `profiles/` из `tools/profiles-tarball.sh ВЕРСИЯ`, выложенный в релиз

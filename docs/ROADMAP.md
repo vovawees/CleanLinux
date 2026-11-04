@@ -103,7 +103,7 @@ bootstrap на чужом хосте.
 
 Цель: на каждом поддерживаемом устройстве работает всё железо, а настройки под него приходят из профиля, а не из ручных твиков.
 
-- [ ] профиль — полное описание устройства: фрагмент конфига ядра, `KERNEL_CMDLINE`, нужные firmware и модули, quirks (udev/hwdb-правила, `modprobe.d`, `sysctl.d`) — ставятся пакетом профиля — формат готов (`KERNEL_FRAGMENT`, `QUIRKS`, `MODULES`, `FIRMWARE`, `KERNEL_CMDLINE`, пакет `hardware`); фрагменты и quirks устройств — [#5](https://github.com/vovawees/CleanLinux/issues/5)
+- [x] профиль — полное описание устройства: фрагмент конфига ядра, `KERNEL_CMDLINE`, нужные firmware и модули, quirks (udev/hwdb-правила, `modprobe.d`, `sysctl.d`) — ставятся пакетом профиля (`hardware`); каталоги устройств `profiles/devices/<имя>/` (`kernel.config`, `quirks/`, `boards`) с проверкой `tests/kernel-config.sh` и `tools/dt-kconfig.py` ([#5](https://github.com/vovawees/CleanLinux/issues/5)); проверка на устройствах — [#8](https://github.com/vovawees/CleanLinux/issues/8)
 - [x] firmware: linux-firmware из upstream, на устройство ставится только то, что нужно его профилю
 - [x] GPU: libdrm, Mesa по `VIDEO_CARDS` (radeonsi/RADV, iris/ANV, nouveau/NVK, freedreno/turnip, panfrost/panvk, v3d/v3dv, lima, etnaviv, virgl/venus), Vulkan loader; LLVM только там, где он нужен
 - [x] NVIDIA: nouveau/NVK из Mesa; проприетарный драйвер — отдельный рецепт категории `nonfree`, выключен по умолчанию
