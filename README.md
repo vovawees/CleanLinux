@@ -119,7 +119,7 @@ tests/smoke.sh      # собирает и ставит zstd, zlib-ng, xz, lz4, p
 tests/rolling.sh    # soname bump, preserved libs, ABI-пересборка, hold, rollback
 ```
 
-Собрать систему с нуля (нужны gcc/g++, make, bison, gawk, m4, perl, python3, meson, ninja, cmake, pkg-config, git, curl и заголовки libzstd; для чужой архитектуры — `qemu-user`). burn для хоста bootstrap собирает сам — из того же релиза, что ставится в образ:
+Собрать систему с нуля (нужны gcc/g++, make, bison, gawk, m4, perl (со всеми модулями ядра Perl: на Fedora, RHEL, Amazon Linux — `perl-core`), python3, meson, ninja, cmake, pkg-config, git, curl и заголовки libzstd; для чужой архитектуры — `qemu-user`). burn для хоста bootstrap собирает сам — из того же релиза, что ставится в образ:
 
 ```sh
 bootstrap/bootstrap.sh --arch x86_64 toolchain        # кросс-тулчейн + glibc в rootfs

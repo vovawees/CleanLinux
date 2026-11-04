@@ -60,6 +60,13 @@ host_check() {
 	done
 	if ! command -v curl >/dev/null && ! command -v wget >/dev/null; then missing+=(curl); fi
 	((${#missing[@]} == 0)) || die "missing host tools: ${missing[*]}"
+	# Perl modules of the builds (libxcrypt: open; OpenSSL: IPC::Cmd, File::Compare, Time::Piece...):
+	# part of perl itself, but Fedora, RHEL and Amazon Linux split them out (dnf install perl-core)
+	local m
+	for m in 'open qw(:std :utf8)' FindBin IPC::Cmd File::Compare File::Copy Time::Piece Digest::SHA English; do
+		perl -e "use $m; 1" 2>/dev/null || missing+=("${m%% *}")
+	done
+	((${#missing[@]} == 0)) || die "missing Perl modules: ${missing[*]} (Fedora, RHEL, Amazon Linux: dnf install perl-core)"
 	command -v makeinfo >/dev/null || info "note: makeinfo (texinfo) not found, info pages are skipped"
 	gcc --version | head -n1
 }
