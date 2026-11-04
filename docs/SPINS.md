@@ -84,10 +84,10 @@ feature, путь, каталог сервисов). Добавления (но�
 **Пакеты platform** (рецепты базы, `base` их не ставит — их тянут сборки): `wayland`, `wayland-protocols`,
 `libxkbcommon`, `xkeyboard-config`, `pixman`, `libdrm`, `mesa`, `vulkan-loader`, `libinput`, `libevdev`, `mtdev`,
 `hwdata`, `libdisplay-info`, `seatd`, `elogind`, `dbus`, `polkit`, `turnstile`, `pipewire`, `wireplumber`,
-`alsa-lib`, `freetype`, `harfbuzz`, `fontconfig`, `fribidi`, `libpng`, `glib`, `libxml2`, `libepoxy`,
-`xwayland` и библиотеки X11 (`libx11`, `libxcb`, …), `xdg-desktop-portal` (бэкенды — в сборках), `bubblewrap`,
-`fuse3`, `gstreamer`, `gst-plugins-base`, `gdk-pixbuf`, `json-glib`. Шрифты, тулкиты (GTK, Qt) и приложения —
-дело сборок.
+`alsa-lib`, `freetype`, `harfbuzz`, `fontconfig`, `fribidi`, `cairo`, `pango`, `libpng`, `glib`, `libxml2`,
+`libepoxy`, `xwayland` и библиотеки X11 (`libx11`, `libxcb`, …), `xdg-desktop-portal` (бэкенды — в сборках),
+`bubblewrap`, `fuse3`, `gstreamer`, `gst-plugins-base`, `gdk-pixbuf`, `json-glib`. Шрифты, тулкиты (GTK, Qt) и
+приложения — дело сборок.
 
 **Features** (стабильные имена):
 
