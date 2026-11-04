@@ -220,6 +220,73 @@ stage_base() {
 	step 80-base base_install
 }
 
+# ---- native: CleanLinux builds the rest of itself ----
+#
+# perl and python do not cross-compile. The cross toolchain builds the compiler and the basic
+# build tools for the target (NATIVE_TOOLCHAIN); then the rootfs builds NATIVE_PACKAGES with its
+# own gcc, make and burn, the way a device builds its updates: chroot inside an unprivileged user
+# namespace (the mapped root, no root rights on the host), the host's /dev and /proc bind-mounted,
+# the bootstrap's cache and recipes mounted where burn looks for them, no host tool on PATH.
+
+NATIVE_TOOLCHAIN=${NATIVE_TOOLCHAIN:-binutils gcc linux-headers make patch m4 bison flex pkgconf}
+NATIVE_PACKAGES=${NATIVE_PACKAGES:-base-devel}
+
+native_toolchain() {
+	local -a pkgs
+	read -ra pkgs <<<"$NATIVE_TOOLCHAIN"
+	burn -r "$ROOTFS" --host-deps -y install "${pkgs[@]}"
+}
+
+# in_rootfs COMMAND...: run a command of the rootfs inside it, as its root, with a clean
+# environment; sources are downloaded by the rootfs's own curl (the host's resolv.conf)
+in_rootfs() {
+	[[ $ARCH == "$(uname -m)" ]] || [[ -e /proc/sys/fs/binfmt_misc/qemu-$ARCH ]] ||
+		die "the native stage runs $ARCH binaries: same architecture or qemu-user with binfmt_misc"
+	mkdir -p "$ROOTFS/var/cache/burn" "$ROOTFS/var/lib/burn/bootstrap-recipes" "$BURN_CACHE"
+	[[ -e $ROOTFS/etc/resolv.conf ]] || : >"$ROOTFS/etc/resolv.conf.bootstrap"
+	# shellcheck disable=SC2016
+	unshare --map-root-user --mount -- /bin/sh -c '
+		set -e
+		r=$1 cache=$2 recipes=$3 jobs=$4
+		shift 4
+		mount --rbind /dev "$r/dev"
+		mount --rbind /proc "$r/proc"
+		mount --bind "$cache" "$r/var/cache/burn"
+		mount --bind "$recipes" "$r/var/lib/burn/bootstrap-recipes"
+		if [ -f "$r/etc/resolv.conf.bootstrap" ]; then
+			mount --bind /etc/resolv.conf "$r/etc/resolv.conf.bootstrap"
+			ln -sf resolv.conf.bootstrap "$r/etc/resolv.conf"
+		fi
+		exec chroot "$r" /usr/bin/env -i PATH=/usr/bin HOME=/root TERM=dumb LC_ALL=C.UTF-8 \
+			BURN_WORK=/var/cache/burn/work BURN_JOBS="$jobs" "$@"
+	' sh "$ROOTFS" "$BURN_CACHE" "$RECIPES" "$JOBS" "$@"
+}
+
+native_cleanup() {
+	if [[ -e $ROOTFS/etc/resolv.conf.bootstrap ]]; then
+		rm -f "$ROOTFS/etc/resolv.conf.bootstrap"
+		[[ ! -L $ROOTFS/etc/resolv.conf ]] || rm -f "$ROOTFS/etc/resolv.conf"
+	fi
+	rmdir "$ROOTFS/var/lib/burn/bootstrap-recipes" 2>/dev/null || true
+}
+
+native_build() {
+	local -a pkgs
+	read -ra pkgs <<<"$NATIVE_PACKAGES"
+	install_profiles
+	trap native_cleanup EXIT
+	in_rootfs /usr/bin/burn -R /var/lib/burn/bootstrap-recipes -j "$JOBS" -y install "${pkgs[@]}"
+	in_rootfs /usr/bin/burn doctor
+}
+
+stage_native() {
+	info "== stage native"
+	[[ -f $STAMPS/80-base ]] || die "run the base stage first"
+	rm -f "$STAMPS/86-native-build"
+	step 85-native-toolchain native_toolchain
+	step 86-native-build native_build
+}
+
 # burn itself is a package of base; next to it go the hardware profiles of this repository
 install_profiles() {
 	rm -rf "$ROOTFS/usr/share/burn/profiles" && mkdir -p "$ROOTFS/usr/share/burn"
