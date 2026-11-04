@@ -25,7 +25,7 @@
 | `generic-x86_64` | x86-64-v2 | проверено в QEMU (UEFI, systemd-boot, btrfs) | описано (amd, intel, nouveau, virgl) | описано (HDA, SOF) | описано | описано (s2idle) | — | описано |
 | `generic-x86_64-v3` | x86-64-v3 | описано (та же сборка с `-march=x86-64-v3`) | описано | описано | описано | описано | — | описано |
 | `generic-aarch64` | arm64 | описано (UEFI, systemd-boot; в QEMU не проверялось) | описано (freedreno, panfrost, v3d, virgl, …) | описано | описано | — | — | описано |
-| `steam-deck` | x86-64 | описано (UEFI) | описано (radeonsi, RADV) | описано (LCD: ACP5x + CS35L41, UCM `Valve-Jupiter-1` в `alsa-ucm-conf`; OLED: SOF `nau8821-max` — UCM upstream нет, [#6](https://github.com/vovawees/CleanLinux/issues/6)) | описано (firmware по `FIRMWARE`) | описано | описано | описано (`hid-steam`, датчики) |
+| `steam-deck` | x86-64 | описано (UEFI) | описано (radeonsi, RADV) | описано (LCD: ACP5x + CS35L41, UCM `Valve-Jupiter-1` в `alsa-ucm-conf`; OLED: SOF `nau8821-max` — firmware и UCM есть только у Valve: `nonfree`-рецепт `steamdeck-dsp`, ставится при `ALLOW_NONFREE=1`, [#6](https://github.com/vovawees/CleanLinux/issues/6)) | описано (firmware по `FIRMWARE`) | описано | описано | описано (`hid-steam`, датчики) |
 | `rog-ally` | x86-64 | описано (UEFI) | описано (RDNA 3) | описано (HDA + усилители CS35L41) | описано (MT7922) | описано | описано | описано (`hid-asus`, BMI323) |
 | `rog-xbox-ally-x` | x86-64 | описано (UEFI) | описано (RDNA 3.5) | описано | описано | описано | описано | описано |
 | `legion-go` | x86-64 | описано (UEFI) | описано (RDNA 3) | описано (CS35L41) | описано | описано | описано | описано (`hid-lenovo-go`, BMI323) |

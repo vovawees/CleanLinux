@@ -7,6 +7,8 @@ VIDEO_CARDS=amd
 PROFILE_FEATURES+=" handheld battery"
 # firmware from linux-firmware (paths or name prefixes under /usr/lib/firmware); not yet checked on the device
 # LCD: Realtek RTL8822CE Wi-Fi + Bluetooth; OLED: Qualcomm QCA2066 (ath11k); Cirrus CS35L41 speaker amps
+# (LCD). The sound of the OLED needs Valve's SOF firmware and UCM profile, which only the nonfree
+# recipe steamdeck-dsp has (ALLOW_NONFREE=1 in burn.conf, then burn install steamdeck-dsp)
 FIRMWARE="amdgpu/vangogh_ amd-ucode/ rtw88/rtw8822c rtl_bt/rtl8822c ath11k/QCA2066 qca/hpbtfw21 qca/hpnv21 cirrus/cs35l41-dsp1-spk-prot."
 # the device's own kernel options and quirks: profiles/devices/steam-deck/ (see HARDWARE.md)
 KERNEL_FRAGMENT="$PROFILE_DIR/steam-deck/kernel.config"

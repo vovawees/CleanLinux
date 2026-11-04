@@ -107,7 +107,7 @@ bootstrap на чужом хосте.
 - [x] firmware: linux-firmware из upstream, на устройство ставится только то, что нужно его профилю
 - [x] GPU: libdrm, Mesa по `VIDEO_CARDS` (radeonsi/RADV, iris/ANV, nouveau/NVK, freedreno/turnip, panfrost/panvk, v3d/v3dv, lima, etnaviv, virgl/venus), Vulkan loader; LLVM только там, где он нужен
 - [x] NVIDIA: nouveau/NVK из Mesa; проприетарный драйвер — отдельный рецепт категории `nonfree`, выключен по умолчанию
-- [ ] звук: alsa-lib, alsa-utils, alsa-ucm-conf, SOF firmware; UCM-профили для handheld (Snapdragon, Steam Deck) — рецепты готовы; UCM-профили handheld — [#6](https://github.com/vovawees/CleanLinux/issues/6)
+- [ ] звук: alsa-lib, alsa-utils, alsa-ucm-conf, SOF firmware; UCM-профили для handheld (Snapdragon, Steam Deck) — рецепты готовы; Steam Deck LCD — UCM upstream, OLED — firmware и UCM Valve (`nonfree`-рецепт `steamdeck-dsp`); Snapdragon — [#6](https://github.com/vovawees/CleanLinux/issues/6)
 - [ ] ввод: встроенные контроллеры handheld, сенсорные экраны, поворот экрана и акселерометр (iio), libinput quirks — драйверы во фрагментах профилей, ориентация панелей и матрицы акселерометров ROG Ally X и Legion Go — в ядре и hwdb eudev, сервис датчиков `iio-sensor-proxy` (platform); остальные матрицы и quirks — по отчётам с устройств, [#7](https://github.com/vovawees/CleanLinux/issues/7)
 - [x] питание: amd-pstate EPP / intel_pstate, `platform_profile`, лимиты TDP через стандартные интерфейсы ядра, сон (s2idle), подсветка, батарея — с настройками в `/etc`, без GUI
 - [x] оптимизация под профиль: I/O-планировщик по типу накопителя (udev), zram/zswap по объёму RAM, cpufreq governor, THP
