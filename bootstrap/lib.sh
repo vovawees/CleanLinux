@@ -55,11 +55,19 @@ unpack() {
 
 host_check() {
 	local c missing=()
-	for c in gcc g++ make bison gawk m4 python3 perl tar xz zstd patch sed grep find git meson ninja cmake pkg-config; do
+	# the build tools of the cross builds come from the host (burn --host-deps: the makedepends of
+	# the layers devel and core, such as gperf for eudev and systemd-boot, bc and flex for the kernel)
+	for c in gcc g++ make bison flex gawk m4 bc gperf python3 perl tar xz zstd patch sed grep find git meson ninja cmake pkg-config; do
 		command -v "$c" >/dev/null || missing+=("$c")
 	done
 	if ! command -v curl >/dev/null && ! command -v wget >/dev/null; then missing+=(curl); fi
 	((${#missing[@]} == 0)) || die "missing host tools: ${missing[*]}"
+	# headers of the host programs: burn (libzstd), the kernel's objtool (libelf) and sign-file (OpenSSL)
+	local h
+	for h in zstd.h gelf.h openssl/evp.h; do
+		printf '#include <%s>\n' "$h" | gcc -E -x c - >/dev/null 2>&1 || missing+=("$h")
+	done
+	((${#missing[@]} == 0)) || die "missing host headers: ${missing[*]} (libzstd, libelf/elfutils and OpenSSL development packages)"
 	# Perl modules of the builds (libxcrypt: open; OpenSSL: IPC::Cmd, File::Compare, Time::Piece...):
 	# part of perl itself, but Fedora, RHEL and Amazon Linux split them out (dnf install perl-core)
 	local m
@@ -367,11 +375,17 @@ stage_image() {
 DISK_SIZE=${DISK_SIZE:-4G} ESP_SIZE=${ESP_SIZE:-512}
 
 disk_check() {
-	local c missing=()
+	local c m missing=()
 	for c in sfdisk mcopy dd truncate unshare; do
 		command -v "$c" >/dev/null || missing+=("$c")
 	done
 	((${#missing[@]} == 0)) || die "missing host tools for the disk image: ${missing[*]} (util-linux, mtools)"
+	# systemd-boot is built here for the image: its meson generates code with jinja2 and elf2efi
+	# makes PE files of the ELF loaders with pyelftools, both from the python3 of PATH
+	for m in jinja2 elftools; do
+		python3 -c "import $m" 2>/dev/null || missing+=("$m")
+	done
+	((${#missing[@]} == 0)) || die "python3 lacks the modules of the systemd-boot build: ${missing[*]} (python3-jinja2 and python3-pyelftools, or pip install jinja2 pyelftools)"
 	unshare -r true || die "unshare -r failed: the disk image needs unprivileged user namespaces"
 }
 
