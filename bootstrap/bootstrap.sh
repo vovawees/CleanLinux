@@ -9,7 +9,9 @@
 #   disk       bootable disk image: GPT, ESP with systemd-boot + btrfs root (@, @home, @snapshots),
 #              the kernel of the profile; no root needed (DISK_SIZE=4G, ESP_SIZE=512 MiB,
 #              DISK_CMDLINE= replaces the console options); tests/boot.py boots it in QEMU;
-#              --spin adds a spin (git URL or directory, docs/SPINS.md) on top of the base
+#              --spin adds a spin (git URL or directory, docs/SPINS.md) on top of the base;
+#              DISK_PACKAGE_FEATURES= lines for /etc/burn/package.features of the image
+#              ('mesa -video_cards_intel': no LLVM for an image that does not need Intel GPUs)
 #
 # The rootfs doubles as the toolchain sysroot, so every package is built against the exact
 # glibc it will run with. Nothing from the host ends up in the image.

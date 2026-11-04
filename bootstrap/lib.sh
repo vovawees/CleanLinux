@@ -211,6 +211,8 @@ base_install() {
 	# glibc and the kernel headers again, this time as tracked packages built with the profile flags
 	burn -r "$ROOTFS" --host-deps -y install filesystem linux-headers glibc
 	burn -r "$ROOTFS" --host-deps -y install base
+	# a rerun of the stage brings what is installed up to the recipes (install only adds)
+	burn -r "$ROOTFS" --host-deps -y --no-sync update
 	burn -r "$ROOTFS" doctor
 }
 
@@ -389,6 +391,9 @@ disk_root() {
 	mkdir -p "$d/top/@home" "$d/top/@snapshots" "$d/esp"
 	install_profiles
 	cp -a --reflink=auto "$ROOTFS" "$r"
+	if [[ -n ${DISK_PACKAGE_FEATURES:-} ]]; then
+		printf '%s\n' "$DISK_PACKAGE_FEATURES" >"$r/etc/burn/package.features"
+	fi
 	read -ra pkgs <<<"$DISK_PACKAGES"
 	burn -r "$r" --host-deps -y install "${pkgs[@]}"
 	disk_spins "$r"
