@@ -269,3 +269,145 @@ stage_image() {
 	step 91-rootfs-test rootfs_test
 	step 99-tarball make_tarball
 }
+
+# ---- disk: a bootable image without root privileges ----
+#
+# GPT with an EFI system partition (vfat: systemd-boot, the kernel, loader entries) and a btrfs
+# root with the subvolumes @ (/), @home and @snapshots (/.snapshots, where burn keeps its
+# snapshots), compressed with zstd. The root is a copy of the rootfs plus the kernel of the
+# profile and systemd-boot, installed by burn so that the booted system updates them itself.
+# mkfs.btrfs --rootdir fills the filesystem from the directory and unshare -r makes the files
+# owned by root; mtools copy the ESP. The rootfs's own mkfs tools are used when they run here.
+
+DISK_SIZE=${DISK_SIZE:-4G} ESP_SIZE=${ESP_SIZE:-512}
+
+disk_check() {
+	local c missing=()
+	for c in sfdisk mcopy dd truncate unshare; do
+		command -v "$c" >/dev/null || missing+=("$c")
+	done
+	((${#missing[@]} == 0)) || die "missing host tools for the disk image: ${missing[*]} (util-linux, mtools)"
+	unshare -r true || die "unshare -r failed: the disk image needs unprivileged user namespaces"
+}
+
+# disk_tool NAME: the command for a filesystem tool, one word per line: the rootfs's own one when
+# its binaries run here (same architecture, or through qemu-user), else the host's
+disk_tool() {
+	local q
+	if [[ -x $ROOTFS/usr/bin/$1 ]]; then
+		if [[ $ARCH == "$(uname -m)" ]]; then
+			printf '%s\n' "$ROOTFS/usr/lib/${LOADER##*/}" --library-path "$ROOTFS/usr/lib" "$ROOTFS/usr/bin/$1"
+			return
+		fi
+		for q in "qemu-$ARCH" "qemu-$ARCH-static"; do
+			if command -v "$q" >/dev/null; then
+				printf '%s\n' "$(command -v "$q")" -L "$ROOTFS" "$ROOTFS/usr/bin/$1"
+				return
+			fi
+		done
+	fi
+	if command -v "$1" >/dev/null; then
+		command -v "$1"
+	fi
+}
+
+# DISK_PACKAGES: what the image has on top of base: the kernel and the boot loader, the installer,
+# and Wi-Fi (iwd, enabled by the installer where there is Wi-Fi)
+DISK_PACKAGES=${DISK_PACKAGES:-linux systemd-boot cleanlinux-install iwd}
+
+disk_root() {
+	local d=$WORK/disk r=$WORK/disk/top/@ meta name version release parch buildid f n=0
+	local -a pkgs
+	if [[ -d $d ]]; then chmod -R u+w "$d" && rm -rf "$d"; fi
+	mkdir -p "$d/top/@home" "$d/top/@snapshots" "$d/esp"
+	install_profiles
+	cp -a --reflink=auto "$ROOTFS" "$r"
+	read -ra pkgs <<<"$DISK_PACKAGES"
+	burn -r "$r" --host-deps -y install "${pkgs[@]}"
+	burn -r "$r" doctor
+	# wired network at boot (dinitctl enable dhcpcd)
+	mkdir -p "$r/etc/dinit.d/boot.d"
+	ln -sfn /usr/lib/dinit.d/dhcpcd "$r/etc/dinit.d/boot.d/dhcpcd"
+	# the image installs itself: cleanlinux-install runs burn clone, which takes the package
+	# files of every installed build from /var/cache/burn/packages
+	mkdir -p "$r/var/cache/burn/packages"
+	for meta in "$r"/var/lib/burn/installed/*/meta; do
+		name=$(sed -n 's/^name=//p' "$meta") version=$(sed -n 's/^version=//p' "$meta")
+		release=$(sed -n 's/^release=//p' "$meta") parch=$(sed -n 's/^arch=//p' "$meta")
+		buildid=$(sed -n 's/^buildid=//p' "$meta")
+		f=$BURN_CACHE/packages/$name-$version-$release-$parch-$buildid.pkg.tar.zst
+		[[ -f $f ]] || die "the package file of $name is not in the cache: $f"
+		cp --reflink=auto "$f" "$r/var/cache/burn/packages/"
+		n=$((n + 1))
+	done
+	info "package cache of the image: $n packages, $(du -sh "$r/var/cache/burn/packages" | cut -f1)"
+}
+
+disk_image() {
+	local d=$WORK/disk r=$WORK/disk/top/@ img esp_uuid root_uuid fs_uuid root_type console
+	local -a mkvfat mkbtrfs
+	img=$WORK/cleanlinux-$ARCH-$PROFILE.img
+	esp_uuid=$(</proc/sys/kernel/random/uuid) root_uuid=$(</proc/sys/kernel/random/uuid)
+	fs_uuid=$(</proc/sys/kernel/random/uuid)
+	case $ARCH in
+		x86_64) root_type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709 console='console=tty0 console=ttyS0,115200' ;;
+		aarch64) root_type=B921B045-1DF0-41C3-AF44-4C6F280D3FAE console='console=tty0 console=ttyAMA0,115200' ;;
+	esac
+	mapfile -t mkvfat < <(disk_tool mkfs.vfat)
+	mapfile -t mkbtrfs < <(disk_tool mkfs.btrfs)
+	((${#mkvfat[@]})) || die "mkfs.vfat (dosfstools) is needed for the disk image"
+	((${#mkbtrfs[@]})) || die "mkfs.btrfs (btrfs-progs) is needed for the disk image"
+	"${mkbtrfs[@]}" --help 2>&1 | grep -q -- '--subvol' || die "mkfs.btrfs is too old for --subvol (btrfs-progs 6.12+)"
+
+	# the files of this disk: mounts, the kernel command line, the host name; root logs in
+	# without a password on a fresh image (set one with passwd)
+	printf '%s\n' '# <device> <mount point> <type> <options> <dump> <pass>' \
+		"PARTUUID=$root_uuid / btrfs subvol=@,compress=zstd:1,noatime 0 0" \
+		"PARTUUID=$root_uuid /home btrfs subvol=@home,compress=zstd:1,noatime 0 0" \
+		"PARTUUID=$root_uuid /.snapshots btrfs subvol=@snapshots,compress=zstd:1,noatime 0 0" \
+		"PARTUUID=$esp_uuid /boot vfat umask=0077,noatime 0 2" \
+		'tmpfs /tmp tmpfs nosuid,nodev 0 0' >"$r/etc/fstab"
+	mkdir -p "$r/home" "$r/.snapshots" "$r/boot" "$r/etc/kernel"
+	printf '%s\n' "root=PARTUUID=$root_uuid rootflags=subvol=@ rootwait ro ${DISK_CMDLINE-$console}" >"$r/etc/kernel/cmdline"
+	[[ -s $r/etc/hostname ]] || echo cleanlinux >"$r/etc/hostname"
+	sed -i 's/^root:[^:]*:/root::/' "$r/etc/shadow"
+
+	# the ESP: systemd-boot, the kernels and their entries, as on an installed system
+	run_target "$r/usr/bin/cleanlinux-boot" --root "$r" kernel sync --esp "$d/esp"
+	find "$d/esp" -type f | sort
+	rm -f "$d/esp.img"
+	"${mkvfat[@]}" -C -F 32 -n ESP "$d/esp.img" $((ESP_SIZE * 1024))
+	MTOOLS_SKIP_CHECK=1 mcopy -s -m -Q -i "$d/esp.img" "$d/esp"/* ::/
+
+	# GPT: the ESP from 1 MiB, the root up to 1 MiB before the end (the backup table)
+	local bytes esp_start=2048 esp_sectors=$((ESP_SIZE * 2048)) root_start root_sectors
+	rm -f "$img" && truncate -s "$DISK_SIZE" "$img"
+	bytes=$(stat -c %s "$img")
+	root_start=$((esp_start + esp_sectors))
+	root_sectors=$((bytes / 512 - root_start - 2048))
+	((root_sectors > 2097152)) || die "DISK_SIZE=$DISK_SIZE is too small"
+	printf '%s\n' 'label: gpt' \
+		"start=$esp_start, size=$esp_sectors, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=$esp_uuid, name=\"EFI system partition\"" \
+		"start=$root_start, size=$root_sectors, type=$root_type, uuid=$root_uuid, name=cleanlinux" |
+		sfdisk -q "$img"
+	sfdisk -d "$img"
+
+	# btrfs from the directory tree, files owned by root
+	rm -f "$d/root.img" && truncate -s $((root_sectors * 512)) "$d/root.img"
+	unshare -r "${mkbtrfs[@]}" -f -L cleanlinux -U "$fs_uuid" --rootdir "$d/top" \
+		--subvol rw:@ --subvol rw:@home --subvol rw:@snapshots --compress zstd:3 "$d/root.img"
+
+	dd if="$d/esp.img" of="$img" bs=1M seek=$((esp_start * 512)) oflag=seek_bytes conv=notrunc,sparse status=none
+	dd if="$d/root.img" of="$img" bs=1M seek=$((root_start * 512)) oflag=seek_bytes conv=notrunc,sparse status=none
+	chmod -R u+w "$d" && rm -rf "$d"
+	ls -lhs "$img"
+}
+
+stage_disk() {
+	info "== stage disk"
+	[[ -f $STAMPS/80-base ]] || die "run the base stage first"
+	rm -f "$STAMPS/95-disk-check" "$STAMPS/96-disk-root" "$STAMPS/97-disk-image"
+	step 95-disk-check disk_check
+	step 96-disk-root disk_root
+	step 97-disk-image disk_image
+}

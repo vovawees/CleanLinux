@@ -4,6 +4,9 @@
 #   toolchain  cross binutils -> gcc (pass 1) -> kernel headers -> glibc -> gcc (final)
 #   base       the base system, cross-compiled and installed by burn into the rootfs
 #   image      burn inside the rootfs, chroot/qemu test, rootfs tarball
+#   disk       bootable disk image: GPT, ESP with systemd-boot + btrfs root (@, @home, @snapshots),
+#              the kernel of the profile; no root needed (DISK_SIZE=4G, ESP_SIZE=512 MiB,
+#              DISK_CMDLINE= replaces the console options); tests/boot.py boots it in QEMU
 #
 # The rootfs doubles as the toolchain sysroot, so every package is built against the exact
 # glibc it will run with. Nothing from the host ends up in the image.
@@ -29,10 +32,10 @@ while (($#)); do
 		-j) JOBS=${2:?} && shift 2 ;;
 		-v) VERBOSE=1 && shift ;;
 		-h | --help)
-			sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+			sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
 			exit 0
 			;;
-		toolchain | base | image | all) STAGES+=("$1") && shift ;;
+		toolchain | base | image | disk | all) STAGES+=("$1") && shift ;;
 		*) die "unknown argument: $1" ;;
 	esac
 done
@@ -81,10 +84,12 @@ for stage in "${STAGES[@]}"; do
 		toolchain) stage_toolchain ;;
 		base) stage_base ;;
 		image) stage_image ;;
+		disk) stage_disk ;;
 		all)
 			stage_toolchain
 			stage_base
 			stage_image
+			stage_disk
 			;;
 	esac
 done
