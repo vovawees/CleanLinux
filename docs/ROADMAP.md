@@ -96,7 +96,7 @@ bootstrap на чужом хосте.
 - [x] burn внутри системы: пакет `burn` уже в `base`; нужны git, curl, ca-certificates, openssl — тогда `burn sync && burn update` работают на устройстве
 - [x] `base-devel` для нативной сборки любого рецепта: perl, python, meson, ninja, cmake, flex, bc, elfutils (libelf для objtool ядра), autoconf/automake/libtool, gettext
 - [x] ускорители сборки внутри системы: ccache, mold, pahole (BTF для sched_ext)
-- [ ] нативная пересборка всей базы на устройстве даёт те же пакеты, что и cross-сборка (воспроизводимость) — [#3](https://github.com/vovawees/CleanLinux/issues/3)
+- [ ] нативная пересборка всей базы на устройстве даёт те же пакеты, что и cross-сборка (воспроизводимость) — проверка `tests/native-repro.sh` готова, прогон после `bootstrap native` и разбор расхождений — [#3](https://github.com/vovawees/CleanLinux/issues/3)
 - [x] консольный минимум администратора: procps-ng, psmisc, less, kbd (раскладки и шрифты консоли), man-db — без выбора редактора и оболочки за пользователя
 
 ## Этап 3. Железо: драйверы и оптимизация
