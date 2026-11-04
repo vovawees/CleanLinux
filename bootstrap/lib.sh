@@ -3,6 +3,7 @@
 # $LOGS/<step>.log and leaves a stamp, so an interrupted bootstrap resumes where it stopped.
 
 info() { printf '\033[1;36m::\033[0m %s\n' "$*" >&2; }
+warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
 die() {
 	printf '\033[1;31merror:\033[0m %s\n' "$*" >&2
 	exit 1
@@ -289,8 +290,16 @@ stage_native() {
 	step 86-native-build native_build
 }
 
-# burn itself is a package of base; next to it go the hardware profiles of this repository
+# burn itself is a package of base, and so are the hardware profiles of this repository
+# (cleanlinux-profiles, made by tools/profiles-tarball.sh): until it is installed, profiles/ is
+# copied; afterwards the system has the profiles of the package (burn clone gives them to the
+# installed system), and a change in profiles/ needs a new release of it
 install_profiles() {
+	if [[ -d $ROOTFS/var/lib/burn/installed/cleanlinux-profiles ]]; then
+		diff -rq "$TOP/profiles" "$ROOTFS/usr/share/burn/profiles" >/dev/null ||
+			warn "profiles/ differs from the package cleanlinux-profiles of the rootfs: the system keeps the package (release a new cleanlinux-profiles)"
+		return 0
+	fi
 	rm -rf "$ROOTFS/usr/share/burn/profiles" && mkdir -p "$ROOTFS/usr/share/burn"
 	cp -r "$TOP/profiles" "$ROOTFS/usr/share/burn/"
 }
