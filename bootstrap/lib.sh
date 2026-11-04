@@ -389,6 +389,36 @@ disk_tool() {
 	fi
 }
 
+# disk_native: what cross builds of the spins run on this machine, built here into $TOOLS. A
+# Wayland spin needs wayland-scanner of the version of the wayland recipe (wayland itself demands
+# exactly its own version, wlroots a recent one); meson takes the build machine's pkg-config path
+# of a cross build from PKG_CONFIG_PATH_FOR_BUILD (bootstrap.sh points it at $TOOLS/lib/pkgconfig).
+# It links a static expat of the expat recipe, so the host needs no expat headers.
+disk_native() {
+	local v src e=$OBJ/native-expat w=$OBJ/native-wayland-scanner
+	((${#SPINS[@]})) || return 0
+	v=$(sed -n 's/^version=//p' "$RECIPES/wayland/recipe")
+	if [[ -x $TOOLS/bin/wayland-scanner && $("$TOOLS/bin/wayland-scanner" --version 2>&1) == *" $v" ]]; then
+		info "wayland-scanner $v is there"
+		return 0
+	fi
+	src=$(unpack expat)
+	rm -rf "$e" && mkdir -p "$e/build"
+	(cd "$e/build" && "$src/configure" --prefix="$e/inst" --disable-shared --enable-static \
+		--without-xmlwf --without-examples --without-tests --without-docbook)
+	make -C "$e/build" -j"$JOBS"
+	make -C "$e/build" install
+	src=$(unpack wayland)
+	rm -rf "$w"
+	meson setup "$w" "$src" --prefix="$TOOLS" --libdir=lib --buildtype=release --wrap-mode=nodownload \
+		--pkg-config-path="$e/inst/lib/pkgconfig" -Dlibraries=false -Dscanner=true -Dtests=false \
+		-Ddocumentation=false -Ddtd_validation=false
+	meson compile -C "$w" -j "$JOBS"
+	meson install -C "$w"
+	"$TOOLS/bin/wayland-scanner" --version
+	rm -rf "$e" "$w"
+}
+
 # DISK_PACKAGES: what the image has on top of base: the kernel and the boot loader, the installer,
 # and Wi-Fi (iwd, enabled by the installer where there is Wi-Fi)
 DISK_PACKAGES=${DISK_PACKAGES:-linux systemd-boot cleanlinux-install iwd}
@@ -517,7 +547,8 @@ disk_image() {
 stage_disk() {
 	info "== stage disk"
 	[[ -f $STAMPS/80-base ]] || die "run the base stage first"
-	rm -f "$STAMPS/95-disk-check" "$STAMPS/96-disk-root" "$STAMPS/97-disk-image"
+	rm -f "$STAMPS/94-disk-native" "$STAMPS/95-disk-check" "$STAMPS/96-disk-root" "$STAMPS/97-disk-image"
+	step 94-disk-native disk_native
 	step 95-disk-check disk_check
 	step 96-disk-root disk_root
 	step 97-disk-image disk_image

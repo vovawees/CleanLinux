@@ -76,6 +76,8 @@ TRIPLE=$ARCH-cleanlinux-linux-gnu
 WORK=$(readlink -m "${WORK:-$TOP/build/$ARCH}")
 TOOLS=$WORK/tools ROOTFS=$WORK/rootfs SRCDIR=$WORK/src OBJ=$WORK/obj LOGS=$WORK/logs STAMPS=$WORK/stamps
 export PATH=$TOOLS/bin:$PATH LC_ALL=C
+# the pkg-config path of the build machine in meson's cross builds: the native wayland-scanner
+export PKG_CONFIG_PATH_FOR_BUILD=$TOOLS/lib/pkgconfig
 unset CFLAGS CXXFLAGS LDFLAGS CPPFLAGS CC CXX
 mkdir -p "$TOOLS" "$ROOTFS" "$SRCDIR" "$OBJ" "$LOGS" "$STAMPS"
 
