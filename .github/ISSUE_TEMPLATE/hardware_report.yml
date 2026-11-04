@@ -1,0 +1,55 @@
+name: Отчёт об устройстве · Hardware report
+description: Как CleanLinux работает на вашем устройстве (docs/HARDWARE.md) · how CleanLinux runs on your device
+labels: [hardware]
+body:
+  - type: input
+    id: device
+    attributes:
+      label: Устройство · Device
+      placeholder: Steam Deck OLED, ROG Ally X, Mangmi Air X…
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Профиль · Profile
+      description: "`burn profile show` (и что предлагает `burn profile detect`)"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Ядро и burn · Kernel and burn
+      description: "`uname -r`, `burn --version`"
+  - type: dropdown
+    id: boot
+    attributes: {label: Загрузка · Boot, options: [работает · works, частично · partly, нет · no, не проверял · not tested]}
+  - type: dropdown
+    id: gpu
+    attributes: {label: GPU (Mesa / Vulkan), options: [работает · works, частично · partly, нет · no, не проверял · not tested]}
+  - type: dropdown
+    id: sound
+    attributes: {label: Звук · Sound, options: [работает · works, частично · partly, нет · no, не проверял · not tested]}
+  - type: dropdown
+    id: wifi
+    attributes: {label: Wi-Fi / Bluetooth, options: [работает · works, частично · partly, нет · no, не проверял · not tested]}
+  - type: dropdown
+    id: sleep
+    attributes: {label: Сон · Sleep (s2idle), options: [работает · works, частично · partly, нет · no, не проверял · not tested]}
+  - type: dropdown
+    id: battery
+    attributes: {label: Батарея и питание · Battery and power, options: [работает · works, частично · partly, нет · no, не проверял · not tested]}
+  - type: dropdown
+    id: input
+    attributes: {label: Контроллеры, кнопки, датчики · Controls, buttons, sensors, options: [работает · works, частично · partly, нет · no, не проверял · not tested]}
+  - type: textarea
+    id: notes
+    attributes:
+      label: Подробности · Details
+      description: Что не работает, какие quirks помогли · what fails, which quirks helped
+  - type: textarea
+    id: logs
+    attributes:
+      label: Логи · Logs
+      description: "`dmesg`, `burn doctor`, `lspci -nn` / device tree"
+      render: text

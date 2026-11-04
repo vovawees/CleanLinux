@@ -64,7 +64,7 @@ b() { burn -R packages -r /tmp/root -c /tmp/test.conf --host-deps -y "$@"; }
 b lint <pkg>              # формат и обязательные поля
 b install <pkg>           # сборка и установка в тестовый корень
 b files <pkg>             # что попало в пакет
-tools/lint.sh --fetch <pkg>   # то же, что проверяет CI: ссылки и sha256
+tools/lint.sh --fetch <pkg>   # то же, что проверяет tools/check.sh: ссылки и sha256
 ```
 
 Так же работает `tests/smoke.sh` в основном репозитории.

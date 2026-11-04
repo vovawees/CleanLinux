@@ -39,7 +39,7 @@ bootstrap на чужом хосте.
 | [burn](https://github.com/vovawees/burn) | пакетный менеджер на C (C17, только libc + libzstd): рецепты, сборка, установка, rolling+++ | используется: bootstrap собирает его из релиза, пакет `burn` в `base`; bash-прототип — тег `burn-prototype` |
 | `cleanlinux-boot` (рабочее название) | сервисы dinit для загрузки и помощник на C: ранние ФС, coldplug модулей через libkmod, hostname, seed, часы | этап 1 |
 | `cleanlinux-install` (рабочее название) | установщик на C: разметка, `burn -r /mnt install base`, fstab, загрузчик, пользователь | этап 1 |
-| CleanLinux | документация, профили железа, bootstrap, образы, CI | — |
+| CleanLinux | документация, профили железа, bootstrap, образы, тесты (`tools/check.sh`) | — |
 | [CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes) | рецепты базы: только текст, без бинарников | — |
 
 ## Сделано
@@ -75,7 +75,7 @@ bootstrap на чужом хосте.
 - [ ] файловые системы: e2fsprogs, btrfs-progs, dosfstools
 - [ ] загрузчик: systemd-boot на UEFI (собирается отдельно, без systemd); хук burn кладёт ядро в ESP и пишет запись загрузчика при установке и обновлении ядра
 - [ ] образ диска `bootstrap.sh disk`: GPT, ESP + btrfs (подтома `@`, `@home`, `@snapshots`, сжатие zstd), собирается без root-прав
-- [ ] тест загрузки в CI: образ грузится в QEMU до приглашения `login:` (x86_64, затем aarch64)
+- [ ] тест загрузки в QEMU (`tools/check.sh --full`): образ грузится в QEMU до приглашения `login:` (x86_64, затем aarch64)
 - [ ] сеть: iproute2, dhcpcd, iwd (Wi-Fi), openresolv, сервисы dinit
 - [ ] установщик `cleanlinux-install` (C, отдельный репозиторий): разметка, `burn -r /mnt install base`, fstab, загрузчик, пользователь — как `pacstrap` + `genfstab`, без выбора DE
 
@@ -137,7 +137,7 @@ bootstrap на чужом хосте.
 быстрым бинарником, без bash, tar, sed и awk в рабочем цикле. Переход незаметен: C-версия читает и пишет то же,
 что bash-прототип, и проверяется сравнением с ним на всех рецептах.
 
-- [x] репозиторий [burn](https://github.com/vovawees/burn): сборка через `make` (только libc + libzstd), unit-тесты, CI, сверка с прототипом (`make proto`)
+- [x] репозиторий [burn](https://github.com/vovawees/burn): сборка через `make` (только libc + libzstd), unit-тесты, локальные проверки (`tools/check.sh`), сверка с прототипом (`make proto`)
 - [x] язык рецептов: свой разбор статического подмножества shell (присваивания, массивы, `${v%…}`, `{001..020}`) — `info`, `query`, `search`, `lint` без запуска bash
 - [x] конфиг и профили (статические: машину определяет burn — `HOST_ARCH`, `HOST_VIDEO_CARDS`); определение CPU и устройства на C (cpuid, DMI, device tree) — `profile show|list|detect`
 - [x] база пакетов: `list`, `files`, `owner`, `hold`, `history`, `doctor` — индекс файлов в памяти вместо grep по спискам
