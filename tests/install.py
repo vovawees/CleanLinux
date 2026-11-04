@@ -44,7 +44,7 @@ c sh -c 'findmnt -no FSTYPE /boot | grep -qx vfat'; c test -f /boot/EFI/BOOT/BOO
 c sh -c 'ls /boot/loader/entries/*.conf'; c grep -q 'root=PARTUUID=' /etc/kernel/cmdline;
 c grep -qx HOST /proc/sys/kernel/hostname; c grep -qx HOST /etc/hostname; c test -s /etc/machine-id;
 c sh -c 'id -nG USER | grep -qw wheel'; c test -d /home/USER; c sh -c 'stat -c %U /home/USER | grep -qx USER';
-c sh -c 'grep "^root:" /etc/shadow | grep -q "^root:\$y\$"'; c test -L /etc/dinit.d/boot.d/dhcpcd;
+c grep -q '^root:[$]y[$]' /etc/shadow; c test -L /etc/dinit.d/boot.d/dhcpcd;
 for s in early-udevd early-root-rw early-fstab early-seed early-tmpfiles early-clock system login dhcpcd; do
 c dinitctl is-started $s; done;
 c burn --version; c burn doctor; burn list | wc -l | sed 's/^/INSTALLED-PKGS=/';
@@ -89,6 +89,9 @@ class Run:
             if self.con.expect(r"Password: ?", 60) is None:
                 return f"no password prompt for {user}"
             self.con.send(password)
+            # the prompt first: what is typed while login checks the password may be flushed
+            if self.con.expect(r"[#$] ?$", 90) is None:
+                return f"no shell after logging in as {user}"
         self.con.send("echo LOGIN-$((40+2))-$(id -un)")
         if self.con.expect(rf"LOGIN-42-{user}", 90) is None:
             return f"{user} could not log in"
