@@ -23,7 +23,7 @@ CleanLinux-Recipes  ──►  burn  ──►  система на устрой
 | Решение | Почему |
 |---|---|
 | **glibc**, не musl | Проприетарные драйверы, Flatpak/AppImage и почти любой бинарный софт (в том числе тот, что ставят сборки) рассчитаны на glibc. Быстрый malloc и полная поддержка локалей — бонус. |
-| **GCC 16 + binutils** | Основной тулчейн для обеих архитектур; лучшая поддержка `-march`/`-mcpu` под конкретные ядра (znver4, cortex-a73.cortex-a53…). Clang/LLVM появится как опция (нужен и для Mesa). |
+| **GCC 16 + binutils** | Основной тулчейн для обеих архитектур; лучшая поддержка `-march`/`-mcpu` под конкретные ядра (znver4, cortex-a73.cortex-a53…). LLVM собирается только там, где он нужен (Mesa для Intel и Mali, llvmpipe); Clang как компилятор системы — опция на будущее. |
 | **Merged `/usr`** | `/bin`, `/sbin`, `/lib`, `/lib64` — симлинки в `/usr`. Один каталог с программами, совместимость с бинарниками из других дистрибутивов (`/lib64/ld-linux-x86-64.so.2`, `/lib/ld-linux-aarch64.so.1`). |
 | **dinit** | Маленький и быстрый init с зависимостями и супервизией сервисов, без тяжёлого стека systemd. Важно для слабых устройств с 2–4 ГБ RAM. |
 | **Стек выбирает сборка** | Wayland или X11, PipeWire или PulseAudio — features программного стека задаёт сборка (или пользователь), а не база и не профиль железа. Рецепты по умолчанию следуют upstream. |
@@ -76,12 +76,17 @@ CleanLinux, тег [`burn-prototype`](https://github.com/vovawees/CleanLinux/tre
 Порядок, в котором применяются переключатели (последний побеждает):
 
 1. значения по умолчанию в рецепте: `features=(+wayland -x11)`
-2. профиль: `PROFILE_FEATURES`
-3. `/etc/burn/burn.conf`: `FEATURES="-nls x11"`
-4. `/etc/burn/package.features`: `mesa -x11 +vulkan`
-5. командная строка: `burn -f "x11" install ...`
+2. `VIDEO_CARDS` профиля: особенности `video_cards_<карта>` (как USE_EXPAND в Gentoo) — Mesa собирает
+   только драйверы видеокарт профиля и тянет LLVM, только если он нужен им
+3. профиль: `PROFILE_FEATURES`
+4. подключённые сборки: `SPIN_FEATURES` из их `spin.conf`
+5. `/etc/burn/burn.conf`: `FEATURES="-nls x11"`
+6. `package.features` сборок, затем `/etc/burn/package.features`: `mesa -video_cards_intel`
+7. командная строка: `burn -f "x11" install ...`
 
-Зависимость `pkg:feat` нужна только при включённой feature, `pkg:!feat` — только при выключенной. Для meson по умолчанию `--auto-features=disabled`: сборка не зависит от того, что «случайно нашлось» в системе.
+Учитываются только особенности, которые рецепт объявил. Зависимость `pkg:feat` нужна только при включённой
+feature, `pkg:!feat` — только при выключенной. Для meson по умолчанию `--auto-features=disabled`: сборка не
+зависит от того, что «случайно нашлось» в системе.
 
 ### Флаги компилятора
 
@@ -96,7 +101,27 @@ CleanLinux, тег [`burn-prototype`](https://github.com/vovawees/CleanLinux/tre
 - `burn -r /mnt/root install …` — установка в другой корень (с проверкой конфликтов, базой пакетов и историей внутри него).
 - В режиме *staging root* (корень ≠ `/`, без кросса) заголовки и библиотеки берутся из корня: `-isystem`, `-L`, `-Wl,-rpath-link`, `PKG_CONFIG_PATH`.
 - `--target aarch64-cleanlinux-linux-gnu` — кросс-сборка: корень одновременно sysroot тулчейна, так что всё линкуется ровно с той glibc, с которой будет работать.
-- `--host-deps` — инструменты сборки (meson, cmake, …) берутся с хоста, их `makedepends` не ставятся в корень.
+- `--host-deps` (и любая кросс-сборка) — инструменты сборки берутся с машины сборки: `makedepends` слоёв
+  `devel` и `core` (компиляторы, meson, cmake, perl, python, openssl) не собираются, а заголовки и данные
+  остальных слоёв (`xorgproto`, `wayland-protocols`, `hwdata`) собираются в корень — он и есть sysroot.
+
+### Изоляция и права
+
+Каждая фаза сборки идёт в своём сетевом пространстве имён (только `lo`): исходники скачаны и проверены
+заранее, а сборка не может ничего скачать сама (`cargo fetch` — единственное исключение, до сборки). От root
+burn собирает под пользователем `burn` (`BUILD_USER`, создаётся sysusers) с `no_new_privs`, без root —
+внутри user namespace; `ISOLATE=auto|1|0`.
+
+Рецепты слоя `nonfree` (драйвер NVIDIA) burn не собирает и не ставит, пока в `burn.conf` нет
+`ALLOW_NONFREE=1`. Рецепты с `options=(late)` — внешние модули ядра — `burn update` собирает после того, как
+обновление применено, против нового ядра.
+
+### Конфиги
+
+Файлы из `backup=()` рецепта обновляются как в pacman: burn хранит sha256 установленной версии
+(`/var/lib/burn/installed/<pkg>/backup-sums`). Нетронутый файл получает новую версию по умолчанию, изменённый
+остаётся, а новая версия ложится рядом как `.burnnew`; при удалении пакета сохраняется (`.burnsave`) только
+изменённый файл.
 
 ### Файлы на системе
 
@@ -107,16 +132,18 @@ CleanLinux, тег [`burn-prototype`](https://github.com/vovawees/CleanLinux/tre
 | `/etc/burn/hold` | замороженные пакеты |
 | `/etc/burn/profiles/` | свои профили (ищутся первыми) |
 | `/etc/burn/hooks/{pre,post}-update.d/` | хуки обновления |
-| `/usr/share/burn/profiles/` | профили железа из этого репозитория |
+| `/usr/share/burn/profiles/` | профили железа из этого репозитория (пакет `cleanlinux-profiles`) |
 | `/.snapshots/burn-*` | read-only снимки btrfs перед обновлениями |
-| `/var/lib/burn/installed/<pkg>/` | `meta`, `files`, `provides-so`, `needs-so`, `preserved` |
+| `/var/lib/burn/installed/<pkg>/` | `meta`, `files`, `provides-so`, `needs-so`, `backup-sums`, `preserved` |
+| `/var/lib/burn/spins/<имя>/` | подключённые сборки: `spin.conf`, рецепты, `package.features` ([SPINS.md](SPINS.md)) |
 | `/var/lib/burn/state/history` | журнал транзакций |
 | `/var/lib/burn/repos/` | git-клоны репозиториев рецептов |
 | `/var/cache/burn/` | исходники, собранные пакеты (для отката), `ccache/` |
 
 ## Профили
 
-Профиль — bash-файл с переменными, наследование через `inherit`:
+Профиль — статический файл переменных (то же подмножество shell, что и верхний уровень рецепта: burn читает его
+сам, без bash), наследование через `inherit`:
 
 ```bash
 inherit base
@@ -125,9 +152,44 @@ CARCH=aarch64
 CPU_FLAGS="-mcpu=cortex-a73.cortex-a53 -mfix-cortex-a53-835769 -mfix-cortex-a53-843419"
 VIDEO_CARDS=freedreno
 PROFILE_FEATURES+=" handheld battery"
+FIRMWARE="qcom/a630_sqe qcom/qrb4210/ ath10k/WCN3990 qca/crbtfw qca/crnv"
+KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 ```
 
-Переменные: `CARCH`, `CPU_FLAGS`, `VIDEO_CARDS`, `PROFILE_FEATURES`, `KERNEL_CMDLINE`, `KERNEL_CONFIG` (фрагмент конфигурации ядра). Профиль описывает только железо: в `PROFILE_FEATURES` — аппаратные features (`handheld`, `battery`, …), а не программный стек. Профиль `native` определяет CPU и GPU сам (`-march=native`/`-mcpu=native`, видеокарты по `/sys`), `burn profile detect` подбирает готовый профиль устройства или печатает заготовку для `/etc/burn/profiles/`.
+| Переменная | Что это |
+|---|---|
+| `CARCH`, `CPU_FLAGS` | архитектура и флаги процессора (`-march=znver2`, `-mcpu=cortex-a76.cortex-a55`) |
+| `VIDEO_CARDS` | драйверы GPU: ядро, libdrm и Mesa (`video_cards_*`) |
+| `KERNEL_CONFIG`, `KERNEL_FRAGMENT` | полный конфиг ядра вместо defconfig; фрагмент устройства, накладывается последним |
+| `KERNEL_CMDLINE` | параметры ядра устройства (установщик добавляет их в `/etc/kernel/cmdline`) |
+| `FIRMWARE` | firmware устройства из linux-firmware (пусто — всё) |
+| `MODULES`, `QUIRKS` | модули для загрузки при старте; дерево `udev/rules.d`, `hwdb.d`, `modprobe.d`, `sysctl.d` устройства |
+| `PROFILE_FEATURES` | аппаратные features (`handheld`, `battery`), не программный стек |
+
+Значения профиля, которые упоминает рецепт, входят в его BUILDID: ядро для Steam Deck и ядро для ROG Ally —
+разные сборки в кеше, а пакеты, которым железо безразлично, общие. Профиль описывает только железо. `native`
+берёт архитектуру и видеокарты машины (`HOST_ARCH`, `HOST_VIDEO_CARDS` — их определяет burn по
+`/sys/class/drm`), `burn profile detect` подбирает профиль устройства по DMI и device tree или печатает
+заготовку для `/etc/burn/profiles/`. Что проверено на каком профиле — [HARDWARE.md](HARDWARE.md).
+
+Профили приходят в систему пакетом `cleanlinux-profiles` (входит в `base`), новые устройства — обычным
+`burn update`. Его исходник — архив `profiles/` из `tools/profiles-tarball.sh ВЕРСИЯ`, выложенный в релиз
+`profiles-ВЕРСИЯ` этого репозитория; bootstrap копирует `profiles/` в rootfs, только пока пакета там нет, и
+предупреждает, если рабочее дерево разошлось с установленным пакетом.
+
+## Загрузка и установка
+
+- **cleanlinux-boot** ([репозиторий](https://github.com/vovawees/cleanlinux-boot)) — сервисы dinit и помощник на
+  C: ранние ФС, fsck, udev и coldplug модулей, hostname, sysctl, seed, часы, sysusers и tmpfiles, getty на tty и
+  последовательном порту; swap на zram по объёму RAM (`zram.d`), яркость подсветки, настройки питания
+  (`power.d`: профиль платформы, governor и EPP, пороги заряда, лимиты мощности); триггер burn кладёт ядра в ESP
+  и пишет записи systemd-boot. Корень монтируется без initramfs (`root=PARTUUID=`, драйверы накопителей и btrfs
+  встроены в ядро).
+- **cleanlinux-install** ([репозиторий](https://github.com/vovawees/cleanlinux-install)) — установщик на C:
+  разметка GPT (ESP + btrfs с подтомами `@`, `@home`, `@snapshots`), `burn clone` пакетов живого образа, fstab,
+  systemd-boot, root и пользователь, Wi-Fi через iwd, параметры ядра профиля.
+- Пользовательские сервисы сеанса — `dinit --user` через turnstile (он же даёт `XDG_RUNTIME_DIR`), сессионная
+  шина D-Bus — пользовательский сервис; сборки включают свои через `/etc/dinit.d/user/boot.d`.
 
 ## Bootstrap
 
@@ -136,7 +198,13 @@ PROFILE_FEATURES+=" handheld battery"
 | Этап | Шаги |
 |---|---|
 | `toolchain` | проверка хоста → скелет rootfs (merged `/usr`) → кросс-binutils → GCC pass 1 (без libc) → заголовки Linux → glibc → финальный GCC (C, C++) → runtime-библиотеки GCC в rootfs → тест (hello на C/C++, запуск через ld.so из rootfs или qemu) |
-| `base` | `burn --target <triple> install filesystem linux-headers glibc`, затем `base`; `burn doctor` |
+| `base` | `burn --target <triple> install filesystem linux-headers glibc`, затем `base`; при повторном запуске — `burn update`; `burn doctor` |
+| `native` | компилятор для цели, затем rootfs сам собирает `base-devel` (perl, python, cmake, …) своим gcc и burn — в chroot внутри user namespace, без инструментов хоста |
 | `image` | burn внутри rootfs, проверка через chroot/qemu, архив rootfs `.tar.zst` |
+| `disk` | загрузочный образ без root: GPT, ESP (systemd-boot, ядро профиля) + btrfs (`@`, `@home`, `@snapshots`, zstd); `--spin` добавляет сборку, `DISK_PACKAGE_FEATURES` — строки `package.features` образа |
+
+Образ проверяют `tests/boot.py` (загрузка в QEMU до входа, монтирования, сервисы, zram, `burn doctor`) и
+`tests/install.py` (установка на второй диск через `cleanlinux-install`, загрузка установленной системы, вход
+root и пользователя).
 
 Все исходники берутся через `burn unpack` из тех же рецептов, что и у обычных пакетов, — у тулчейна нет отдельных «волшебных» версий. Каждый шаг пишет лог и отметку, повторный запуск продолжает с места остановки. rootfs — это и sysroot кросс-тулчейна, поэтому в образ не попадает ничего с хоста.
