@@ -10,10 +10,12 @@ KDE Plasma, labwc, sway и любые другие DE и WM, приложени�
 
 *English summary [below](#english).*
 
-> **Статус: pre-alpha.** Уже работают пакетный менеджер `burn`, профили железа, рецепты базовой системы и bootstrap с нуля.
-> Проверено: x86_64 (`generic-x86_64`) и arm64 (`mangmi-air-x`) собираются от компилятора хоста до rootfs из 21 пакета
-> (GCC 16.2, glibc 2.44, bash, coreutils, util-linux, dinit, …): x86_64 — архив 28 МБ, проверен в chroot (`burn doctor` внутри системы);
-> arm64 — 25 МБ, проверен через qemu-user. Загрузочного образа (ядро + загрузчик) пока нет — это следующий этап, см. [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Статус: pre-alpha.** Работают пакетный менеджер `burn`, профили железа, рецепты базы, драйверов и платформы, bootstrap с нуля
+> и загрузочный образ: `bootstrap.sh disk` собирает GPT-образ (ESP с systemd-boot + btrfs), который загружается в QEMU (UEFI)
+> до входа в систему и ставится на диск установщиком `cleanlinux-install` (`tests/boot.py`, `tests/install.py`; проверен x86_64).
+> Сборки ставятся поверх (`burn spin`, первая — [labwc](https://github.com/vovawees/cleanlinux-spin-labwc)). На настоящих устройствах
+> профили ещё не проверены ([docs/HARDWARE.md](docs/HARDWARE.md)); что дальше — [docs/ROADMAP.md](docs/ROADMAP.md) и доска
+> [CleanLinux roadmap](https://github.com/users/vovawees/projects/1).
 
 ## Идея
 
@@ -54,7 +56,7 @@ features и настройками; она ставится и обновляе�
 4. **ABI-aware** — сменилась soname библиотеки → старая сохраняется (*preserved libs*), зависимые пакеты пересобираются автоматически.
 5. **Проверка** — `burn doctor` ищет пропавшие и устаревшие библиотеки.
 6. **Откат и заморозка** — `burn rollback <pkg>`, `burn hold <pkg>`, журнал `burn history`.
-7. **Каналы** — `main` (прошёл проверки `tools/check.sh`), `edge` (новые версии upstream каждый день, ссылки и sha256 проверены автоматически), `security` *(план)*.
+7. **Каналы** — `main` (прошёл проверки `tools/check.sh`), `edge` (новые версии upstream каждый день, ссылки и sha256 проверены автоматически), `security` (`burn update --security`: только исправления уязвимостей).
 
 Подробнее: [docs/ROLLING.md](docs/ROLLING.md).
 
@@ -91,7 +93,8 @@ burn profile show      # итоговые CFLAGS, features, драйверы
 ```
 profiles/     профили железа: base, generic-*, native, devices/*
 bootstrap/    сборка системы с нуля: тулчейн → базовая система → образ (burn для хоста — host-burn.sh)
-tests/        smoke-тест на настоящих рецептах и тест rolling+++
+tests/        smoke-тест на настоящих рецептах, rolling+++, загрузка и установка образа в QEMU (boot.py, install.py)
+tools/        локальные проверки (check.sh, hooks/pre-push), источник пакета профилей (profiles-tarball.sh)
 docs/         архитектура, rolling+++, рецепты, roadmap
 ```
 
@@ -131,7 +134,8 @@ bootstrap/bootstrap.sh --profile mangmi-air-x all     # arm64: тулчейн, b
 - [docs/RECIPES.md](docs/RECIPES.md) — как писать рецепты
 - [docs/SPINS.md](docs/SPINS.md) — как сделать сборку поверх базы и что база ей гарантирует
 - [docs/HARDWARE.md](docs/HARDWARE.md) — профили устройств и что на них проверено
-- [docs/ROADMAP.md](docs/ROADMAP.md) — что дальше
+- [docs/ROADMAP.md](docs/ROADMAP.md) — что дальше (и [доска roadmap](https://github.com/users/vovawees/projects/1))
+- [CONTRIBUTING.md](CONTRIBUTING.md) — как участвовать: проверки `tools/check.sh`, коммиты, pull request'ы
 
 ## Лицензия
 
@@ -151,4 +155,4 @@ There are no binary repositories: the [CleanLinux-Recipes](https://github.com/vo
 - `burn` ("burns" sources into packages for your hardware): parallel, verified prefetch of every source before building, reproducible packages (`SOURCE_DATE_EPOCH`, `-ffile-prefix-map`, clamped file times), `CCACHE=1`, `LINKER=mold|lld`, `-O3` for hot code.
 - Hardware: kernel defaults per device class (zstd zswap/zram, MGLRU, BFQ for flash, amd-pstate EPP, `PREEMPT_DYNAMIC`, BBR + fq), platform and built-in controller drivers for ROG Ally / Legion Go / MSI Claw / AYANEO / OneXPlayer / Steam Deck. Profiles for Steam Deck, ROG Ally (X), ROG Xbox Ally X, Legion Go / Go S / Go 2, MSI Claw, Retroid Pocket 5, AYN Odin 2, Mangmi Air X, Raspberry Pi 5 and more.
 - Cross-first bootstrap: `bootstrap/bootstrap.sh` builds a cross toolchain, glibc and the base system for either architecture from any host.
-- Status: pre-alpha. Verified: x86_64 and arm64 (Mangmi Air X profile) bootstrap from a host compiler to a 21-package rootfs (GCC 16.2, glibc 2.44, dinit, ...), tested in a chroot (x86_64) and under qemu-user (arm64). A bootable image (kernel + bootloader) is the next stage (see [docs/ROADMAP.md](docs/ROADMAP.md)).
+- Status: pre-alpha. `bootstrap.sh disk` builds a bootable GPT image (ESP with systemd-boot + btrfs) that boots in QEMU (UEFI) to a login prompt and installs onto a disk with `cleanlinux-install` (`tests/boot.py`, `tests/install.py`; verified on x86_64). Spins go on top (`burn spin`; the first one is labwc). Real devices are not verified yet ([docs/HARDWARE.md](docs/HARDWARE.md)); next steps: [docs/ROADMAP.md](docs/ROADMAP.md) and the [roadmap board](https://github.com/users/vovawees/projects/1). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) (no hosted CI: `tools/check.sh`).

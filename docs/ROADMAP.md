@@ -14,6 +14,7 @@
 на любом поддерживаемом железе.
 
 Проект в стадии pre-alpha. Этапы идут в порядке работы, пункты внутри этапа — по зависимостям.
+Открытые пункты — issues с меткой [`roadmap`](https://github.com/vovawees/CleanLinux/issues?q=is%3Aissue+label%3Aroadmap) и общая доска [CleanLinux roadmap](https://github.com/users/vovawees/projects/1) по всем репозиториям.
 
 ## Слои
 
@@ -37,8 +38,9 @@ bootstrap на чужом хосте.
 | Репозиторий | Что это | Статус |
 |---|---|---|
 | [burn](https://github.com/vovawees/burn) | пакетный менеджер на C (C17, только libc + libzstd): рецепты, сборка, установка, rolling+++ | используется: bootstrap собирает его из релиза, пакет `burn` в `base`; bash-прототип — тег `burn-prototype` |
-| `cleanlinux-boot` (рабочее название) | сервисы dinit для загрузки и помощник на C: ранние ФС, coldplug модулей через libkmod, hostname, seed, часы | этап 1 |
-| `cleanlinux-install` (рабочее название) | установщик на C: разметка, `burn -r /mnt install base`, fstab, загрузчик, пользователь | этап 1 |
+| [cleanlinux-boot](https://github.com/vovawees/cleanlinux-boot) | сервисы dinit для загрузки и помощник на C: ранние ФС, udev, модули через libkmod, getty, выключение, ядра в ESP (systemd-boot), initramfs, zram, питание | используется: пакет `cleanlinux-boot` в `base` |
+| [cleanlinux-install](https://github.com/vovawees/cleanlinux-install) | установщик на C: GPT + ESP + btrfs, `burn clone`, fstab по PARTUUID, systemd-boot, пользователь | используется: пакет `cleanlinux-install`, `tests/install.py` |
+| [cleanlinux-spin-template](https://github.com/vovawees/cleanlinux-spin-template), [cleanlinux-spin-labwc](https://github.com/vovawees/cleanlinux-spin-labwc) | шаблон сборки и первая сборка (labwc) | этап 5 |
 | CleanLinux | документация, профили железа, bootstrap, образы, тесты (`tools/check.sh`) | — |
 | [CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes) | рецепты базы: только текст, без бинарников | — |
 
@@ -53,6 +55,13 @@ bootstrap на чужом хосте.
 - [x] cross-first bootstrap для x86_64 и aarch64: тулчейн → 21 пакет `base` → архив rootfs (x86_64 проверен в chroot, aarch64 — под qemu-user)
 - [x] ядро: zswap/zram на zstd, MGLRU, PSI, BFQ, BBR + fq, `PREEMPT_DYNAMIC`, amd-pstate EPP, платформенные драйверы и встроенные контроллеры handheld (ROG Ally, Legion Go, MSI Claw, AYANEO, OneXPlayer), sched_ext как feature
 - [x] тесты: smoke на настоящих рецептах, полный цикл rolling+++, воспроизводимость пакетов
+- [x] загрузочный образ: `bootstrap.sh disk` (GPT, ESP с systemd-boot, btrfs `@` `@home` `@snapshots`) загружается в QEMU до входа и ставится на диск (`tests/boot.py`, `tests/install.py`, x86_64)
+- [x] [cleanlinux-boot](https://github.com/vovawees/cleanlinux-boot) и [cleanlinux-install](https://github.com/vovawees/cleanlinux-install) на C; вход (Linux-PAM, shadow), eudev, сеть (dhcpcd, iwd), e2fsprogs, btrfs-progs, dosfstools
+- [x] самосборка: `bootstrap native` — система собирает `base-devel` своим компилятором и своим burn
+- [x] железо: FIRMWARE и KERNEL_CMDLINE в профилях, пакет `hardware` (quirks, модули, I/O-планировщик), Mesa/Vulkan по `VIDEO_CARDS`, ALSA и SOF, Bluetooth, NVIDIA (`nonfree`), zram, питание и подсветка
+- [x] платформа для сборок: Wayland и Xwayland, libinput, seatd/elogind, D-Bus, polkit, PipeWire, шрифтовый стек, xdg-desktop-portal, turnstile (`dinit --user`)
+- [x] сборки: `burn spin`, `bootstrap.sh disk --spin`, [SPINS.md](SPINS.md), [шаблон](https://github.com/vovawees/cleanlinux-spin-template) и [сборка labwc](https://github.com/vovawees/cleanlinux-spin-labwc)
+- [x] локальные проверки вместо хостингового CI: `tools/check.sh` в каждом репозитории, `tools/edge.sh` для канала `edge`
 
 ## Этап 0. Границы проекта
 
@@ -68,68 +77,69 @@ bootstrap на чужом хосте.
 Сначала x86_64 + UEFI, затем aarch64.
 
 - [x] kmod (`depmod`, `modprobe`) и триггер burn: `modules.dep` пересобирается при каждой установке ядра или модулей
-- [ ] сервисы dinit для загрузки (`cleanlinux-boot`): декларативные сервисы и помощник на C вместо shell-скриптов — `/proc` `/sys` `/dev` `/run`, fsck и `mount -a`, hostname, sysctl, загрузка модулей через libkmod, seed случайных чисел, часы, getty на tty и на последовательном порту, корректное выключение
-- [ ] вход в систему: Linux-PAM, shadow (`passwd`, `useradd`), `login` и `su` из util-linux
-- [ ] устройства: eudev (udev без systemd: правила, hwdb, `libudev` — без него не работают libinput, Mesa и любой DE)
-- [ ] ядро: драйверы накопителей и файловые системы корня встроены (NVMe, AHCI, virtio, btrfs, vfat) — загрузка без initramfs по `root=PARTUUID=`; маленький генератор initramfs для случаев, где без него нельзя (LUKS, модульный storage на arm64)
-- [ ] файловые системы: e2fsprogs, btrfs-progs, dosfstools
-- [ ] загрузчик: systemd-boot на UEFI (собирается отдельно, без systemd); хук burn кладёт ядро в ESP и пишет запись загрузчика при установке и обновлении ядра
-- [ ] образ диска `bootstrap.sh disk`: GPT, ESP + btrfs (подтома `@`, `@home`, `@snapshots`, сжатие zstd), собирается без root-прав
-- [ ] тест загрузки в QEMU (`tools/check.sh --full`): образ грузится в QEMU до приглашения `login:` (x86_64, затем aarch64)
-- [ ] сеть: iproute2, dhcpcd, iwd (Wi-Fi), openresolv, сервисы dinit
-- [ ] установщик `cleanlinux-install` (C, отдельный репозиторий): разметка, `burn -r /mnt install base`, fstab, загрузчик, пользователь — как `pacstrap` + `genfstab`, без выбора DE
+- [x] сервисы dinit для загрузки (`cleanlinux-boot`): декларативные сервисы и помощник на C вместо shell-скриптов — `/proc` `/sys` `/dev` `/run`, fsck и `mount -a`, hostname, sysctl, загрузка модулей через libkmod, seed случайных чисел, часы, getty на tty и на последовательном порту, корректное выключение
+- [x] вход в систему: Linux-PAM, shadow (`passwd`, `useradd`), `login` и `su` из util-linux
+- [x] устройства: eudev (udev без systemd: правила, hwdb, `libudev` — без него не работают libinput, Mesa и любой DE)
+- [x] ядро: драйверы накопителей и файловые системы корня встроены (NVMe, AHCI, virtio, btrfs, vfat) — загрузка без initramfs по `root=PARTUUID=`; маленький генератор initramfs для случаев, где без него нельзя (LUKS, модульный storage на arm64)
+- [x] файловые системы: e2fsprogs, btrfs-progs, dosfstools
+- [x] загрузчик: systemd-boot на UEFI (собирается отдельно, без systemd); хук burn кладёт ядро в ESP и пишет запись загрузчика при установке и обновлении ядра
+- [x] образ диска `bootstrap.sh disk`: GPT, ESP + btrfs (подтома `@`, `@home`, `@snapshots`, сжатие zstd), собирается без root-прав
+- [ ] тест загрузки в QEMU (`tools/check.sh --full`): образ грузится в QEMU до приглашения `login:` (x86_64, затем aarch64) — x86_64 проходит (`tests/boot.py`, `tests/install.py`), aarch64 — [#1](https://github.com/vovawees/CleanLinux/issues/1)
+- [x] сеть: iproute2, dhcpcd, iwd (Wi-Fi), openresolv, сервисы dinit
+- [x] установщик `cleanlinux-install` (C, отдельный репозиторий): разметка, `burn -r /mnt install base`, fstab, загрузчик, пользователь — как `pacstrap` + `genfstab`, без выбора DE
+- [ ] зашифрованный корень (LUKS2): cryptsetup, `cleanlinux-install --encrypt`, тест в QEMU — [#2](https://github.com/vovawees/CleanLinux/issues/2)
 
 ## Этап 2. Самодостаточная база
 
 Цель: CleanLinux обновляет и пересобирает сама себя, без хоста.
 
-- [ ] burn внутри системы: пакет `burn` уже в `base`; нужны git, curl, ca-certificates, openssl — тогда `burn sync && burn update` работают на устройстве
-- [ ] `base-devel` для нативной сборки любого рецепта: perl, python, meson, ninja, cmake, flex, bc, elfutils (libelf для objtool ядра), autoconf/automake/libtool, gettext
-- [ ] ускорители сборки внутри системы: ccache, mold, pahole (BTF для sched_ext)
-- [ ] нативная пересборка всей базы на устройстве даёт те же пакеты, что и cross-сборка (воспроизводимость)
-- [ ] консольный минимум администратора: procps-ng, psmisc, less, kbd (раскладки и шрифты консоли), man-db — без выбора редактора и оболочки за пользователя
+- [x] burn внутри системы: пакет `burn` уже в `base`; нужны git, curl, ca-certificates, openssl — тогда `burn sync && burn update` работают на устройстве
+- [x] `base-devel` для нативной сборки любого рецепта: perl, python, meson, ninja, cmake, flex, bc, elfutils (libelf для objtool ядра), autoconf/automake/libtool, gettext
+- [x] ускорители сборки внутри системы: ccache, mold, pahole (BTF для sched_ext)
+- [ ] нативная пересборка всей базы на устройстве даёт те же пакеты, что и cross-сборка (воспроизводимость) — [#3](https://github.com/vovawees/CleanLinux/issues/3)
+- [x] консольный минимум администратора: procps-ng, psmisc, less, kbd (раскладки и шрифты консоли), man-db — без выбора редактора и оболочки за пользователя
 
 ## Этап 3. Железо: драйверы и оптимизация
 
 Цель: на каждом поддерживаемом устройстве работает всё железо, а настройки под него приходят из профиля, а не из ручных твиков.
 
-- [ ] профиль — полное описание устройства: фрагмент конфига ядра, `KERNEL_CMDLINE`, нужные firmware и модули, quirks (udev/hwdb-правила, `modprobe.d`, `sysctl.d`) — ставятся пакетом профиля
-- [ ] firmware: linux-firmware из upstream, на устройство ставится только то, что нужно его профилю
-- [ ] GPU: libdrm, Mesa по `VIDEO_CARDS` (radeonsi/RADV, iris/ANV, nouveau/NVK, freedreno/turnip, panfrost/panvk, v3d/v3dv, lima, etnaviv, virgl/venus), Vulkan loader; LLVM только там, где он нужен
-- [ ] NVIDIA: nouveau/NVK из Mesa; проприетарный драйвер — отдельный рецепт категории `nonfree`, выключен по умолчанию
-- [ ] звук: alsa-lib, alsa-utils, alsa-ucm-conf, SOF firmware; UCM-профили для handheld (Snapdragon, Steam Deck)
-- [ ] ввод: встроенные контроллеры handheld, сенсорные экраны, поворот экрана и акселерометр (iio), libinput quirks
-- [ ] питание: amd-pstate EPP / intel_pstate, `platform_profile`, лимиты TDP через стандартные интерфейсы ядра, сон (s2idle), подсветка, батарея — с настройками в `/etc`, без GUI
-- [ ] оптимизация под профиль: I/O-планировщик по типу накопителя (udev), zram/zswap по объёму RAM, cpufreq governor, THP
-- [ ] Bluetooth и Wi-Fi: bluez, firmware и regdb для беспроводных адаптеров профилей
-- [ ] arm64: загрузка через U-Boot (RK3566), firmware для Raspberry Pi 5, ABL + `boot.img` для Snapdragon (Retroid Pocket 5, AYN Odin 2, Mangmi Air X), device tree из mainline
-- [ ] определение железа: `burn profile detect` по DMI и device tree, установщик сам предлагает профиль
-- [ ] таблица статуса по каждому профилю: загрузка, GPU, звук, Wi-Fi/Bluetooth, сон, батарея, контроллеры
+- [ ] профиль — полное описание устройства: фрагмент конфига ядра, `KERNEL_CMDLINE`, нужные firmware и модули, quirks (udev/hwdb-правила, `modprobe.d`, `sysctl.d`) — ставятся пакетом профиля — формат готов (`KERNEL_FRAGMENT`, `QUIRKS`, `MODULES`, `FIRMWARE`, `KERNEL_CMDLINE`, пакет `hardware`); фрагменты и quirks устройств — [#5](https://github.com/vovawees/CleanLinux/issues/5)
+- [x] firmware: linux-firmware из upstream, на устройство ставится только то, что нужно его профилю
+- [x] GPU: libdrm, Mesa по `VIDEO_CARDS` (radeonsi/RADV, iris/ANV, nouveau/NVK, freedreno/turnip, panfrost/panvk, v3d/v3dv, lima, etnaviv, virgl/venus), Vulkan loader; LLVM только там, где он нужен
+- [x] NVIDIA: nouveau/NVK из Mesa; проприетарный драйвер — отдельный рецепт категории `nonfree`, выключен по умолчанию
+- [ ] звук: alsa-lib, alsa-utils, alsa-ucm-conf, SOF firmware; UCM-профили для handheld (Snapdragon, Steam Deck) — рецепты готовы; UCM-профили handheld — [#6](https://github.com/vovawees/CleanLinux/issues/6)
+- [ ] ввод: встроенные контроллеры handheld, сенсорные экраны, поворот экрана и акселерометр (iio), libinput quirks — [#7](https://github.com/vovawees/CleanLinux/issues/7)
+- [x] питание: amd-pstate EPP / intel_pstate, `platform_profile`, лимиты TDP через стандартные интерфейсы ядра, сон (s2idle), подсветка, батарея — с настройками в `/etc`, без GUI
+- [x] оптимизация под профиль: I/O-планировщик по типу накопителя (udev), zram/zswap по объёму RAM, cpufreq governor, THP
+- [x] Bluetooth и Wi-Fi: bluez, firmware и regdb для беспроводных адаптеров профилей
+- [ ] arm64: загрузка через U-Boot (RK3566), firmware для Raspberry Pi 5, ABL + `boot.img` для Snapdragon (Retroid Pocket 5, AYN Odin 2, Mangmi Air X), device tree из mainline — [#4](https://github.com/vovawees/CleanLinux/issues/4)
+- [x] определение железа: `burn profile detect` по DMI и device tree, установщик сам предлагает профиль
+- [x] таблица статуса по каждому профилю: загрузка, GPU, звук, Wi-Fi/Bluetooth, сон, батарея, контроллеры; проверка на настоящих устройствах — [#8](https://github.com/vovawees/CleanLinux/issues/8)
 
 ## Этап 4. Платформа для сборок
 
 Цель: общий нейтральный фундамент, на который встаёт любая сборка — KDE, labwc, sway, консольный интерфейс.
 Эти рецепты лежат в CleanLinux-Recipes, но в `base` не входят: их ставит сборка.
 
-- [ ] графика и ввод: wayland, wayland-protocols, libxkbcommon, xkeyboard-config, pixman, libinput, libevdev, mtdev, hwdata, libdisplay-info
-- [ ] сеанс и права: seatd (минимум), elogind (для сборок, которым нужен logind API: KDE, GNOME), D-Bus, polkit, `XDG_RUNTIME_DIR` без systemd
-- [ ] звук и видео: PipeWire + WirePlumber, совместимость с ALSA/PulseAudio/JACK по features
-- [ ] шрифтовый стек: freetype, harfbuzz, fontconfig, fribidi (сами шрифты выбирает сборка)
-- [ ] совместимость с X11 по feature `x11`: Xwayland и библиотеки X11
-- [ ] xdg-desktop-portal (бэкенды KDE/wlr/GTK — в сборках)
-- [ ] пользовательские сервисы dinit (`dinit --user`) для сеанса
-- [ ] контракт для сборок: стабильные имена features, пути, каталоги сервисов, версия базы в `os-release`
+- [x] графика и ввод: wayland, wayland-protocols, libxkbcommon, xkeyboard-config, pixman, libinput, libevdev, mtdev, hwdata, libdisplay-info
+- [x] сеанс и права: seatd (минимум), elogind (для сборок, которым нужен logind API: KDE, GNOME), D-Bus, polkit, `XDG_RUNTIME_DIR` без systemd
+- [x] звук и видео: PipeWire + WirePlumber, совместимость с ALSA/PulseAudio/JACK по features
+- [x] шрифтовый стек: freetype, harfbuzz, fontconfig, fribidi (сами шрифты выбирает сборка)
+- [x] совместимость с X11 по feature `x11`: Xwayland и библиотеки X11
+- [x] xdg-desktop-portal (бэкенды KDE/wlr/GTK — в сборках)
+- [x] пользовательские сервисы dinit (`dinit --user`) для сеанса
+- [x] контракт для сборок: стабильные имена features, пути, каталоги сервисов, версия базы в `os-release`
 
 ## Этап 5. Сборки поверх базы
 
 Цель: сделать свою сборку на CleanLinux так же просто, как свой пакет.
 
-- [ ] формат сборки: репозиторий с `spin.conf` (пакеты, features, сервисы), своими рецептами (оверлей) и пакетом настроек — всё ставится, обновляется и удаляется через burn
-- [ ] `burn spin add|remove|list|show`: подключить сборку из git-репозитория или каталога; её рецепты и features участвуют в `burn update`
-- [ ] образ со сборкой: `bootstrap.sh disk --spin <repo>` — база + сборка + профиль железа → готовый образ
-- [ ] `docs/SPINS.md`: как сделать свою сборку и что база ей гарантирует
-- [ ] пустой шаблон сборки для старта своих репозиториев
-- [ ] первые сборки — отдельными репозиториями (например, KDE Plasma и labwc); в базу они не входят
+- [x] формат сборки: репозиторий с `spin.conf` (пакеты, features, сервисы), своими рецептами (оверлей) и пакетом настроек — всё ставится, обновляется и удаляется через burn
+- [x] `burn spin add|remove|list|show`: подключить сборку из git-репозитория или каталога; её рецепты и features участвуют в `burn update`
+- [x] образ со сборкой: `bootstrap.sh disk --spin <repo>` — база + сборка + профиль железа → готовый образ
+- [x] `docs/SPINS.md`: как сделать свою сборку и что база ей гарантирует
+- [x] пустой шаблон сборки для старта своих репозиториев
+- [ ] первые сборки — отдельными репозиториями (например, KDE Plasma и labwc); в базу они не входят — labwc: [cleanlinux-spin-labwc](https://github.com/vovawees/cleanlinux-spin-labwc); KDE Plasma — [#9](https://github.com/vovawees/CleanLinux/issues/9)
 
 ## burn на C (параллельно этапам)
 
@@ -146,7 +156,7 @@ bootstrap на чужом хосте.
 - [x] rolling+++: `sync`, `plan` (порядок зависимостей без bash), `update`, хуки — сверены с прототипом на тестовом репозитории рецептов
 - [x] снимок btrfs перед `update` через ioctl, без btrfs-progs (`SNAPSHOTS=5`, `burn snapshot`) — проверен на настоящей btrfs в виртуальной машине; заменил хук прототипа `10-btrfs-snapshot`
 - [x] переход: bootstrap (`bootstrap/host-burn.sh` собирает burn из релиза, закреплённого рецептом), тесты и образ используют C-burn; рецепт `burn` в CleanLinux-Recipes собирается из релизов и входит в `base`; bash-прототип удалён из CleanLinux и остался тегом `burn-prototype` — эталоном для `make proto`. Настоящая base, cross-собранная C-burn, совпадает с пакетами прототипа байт в байт
-- [ ] дальше: split-пакеты (например, `gcc-libs` отдельно от компилятора); сборка от непривилегированного пользователя с изоляцией (namespaces, без сети); канал `security` и подписи; бинарный кеш *своих* сборок между своими устройствами; PGO и опциональный Clang; HTTP/2 через libcurl как опция; SHA-NI
+- [x] burn 0.7–0.9: split-пакеты (`split=()`); сборка от непривилегированного пользователя с изоляцией (namespaces, без сети, `BUILD_USER`); канал `security` (`security=()` в рецепте, `burn update --security`) и подписи Ed25519; бинарный кеш *своих* сборок между своими устройствами; PGO и опциональный Clang (`COMPILER=clang`); HTTP/2 через libcurl (`make CURL=1`); SHA-NI
 
 ## Не входит в базу
 
