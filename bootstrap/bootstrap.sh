@@ -86,6 +86,7 @@ burn() { "$BURN_BIN" -R "$RECIPES" -p "$PROFILE" --target "$TRIPLE" -j "$JOBS" "
 info "CleanLinux bootstrap: $TRIPLE, profile $PROFILE, $JOBS jobs"
 info "work: $WORK"
 info "recipes: $RECIPES"
+host_meson
 
 for stage in "${STAGES[@]}"; do
 	case $stage in

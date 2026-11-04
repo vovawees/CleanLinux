@@ -57,7 +57,7 @@ host_check() {
 	local c missing=()
 	# the build tools of the cross builds come from the host (burn --host-deps: the makedepends of
 	# the layers devel and core, such as gperf for eudev and systemd-boot, bc and flex for the kernel)
-	for c in gcc g++ make bison flex gawk m4 bc gperf python3 perl tar xz zstd patch sed grep find git meson ninja cmake pkg-config; do
+	for c in gcc g++ make bison flex gawk m4 bc gperf python3 perl tar xz zstd patch sed grep find git ninja cmake pkg-config; do
 		command -v "$c" >/dev/null || missing+=("$c")
 	done
 	if ! command -v curl >/dev/null && ! command -v wget >/dev/null; then missing+=(curl); fi
@@ -77,6 +77,26 @@ host_check() {
 	((${#missing[@]} == 0)) || die "missing Perl modules: ${missing[*]} (Fedora, RHEL, Amazon Linux: dnf install perl-core)"
 	command -v makeinfo >/dev/null || info "note: makeinfo (texinfo) not found, info pages are skipped"
 	gcc --version | head -n1
+}
+
+# host_meson: the meson of the meson recipe for every meson build of the bootstrap, run from its
+# release tarball (pure Python) by the python3 of PATH. Hosts ship older ones (Amazon Linux 2023:
+# 0.63, which looks at Python through distutils, gone since Python 3.12) and the recipes want a
+# recent one (Mesa, wlroots); bootstrap.sh calls this before every stage
+host_meson() {
+	local v src
+	command -v python3 >/dev/null || die "missing host tools: python3"
+	v=$(burn query meson version)
+	if [[ -x $TOOLS/bin/meson && $("$TOOLS/bin/meson" --version 2>/dev/null) == "$v" ]]; then
+		return 0
+	fi
+	src=$(unpack meson)
+	rm -rf "$TOOLS/lib/meson" && mkdir -p "$TOOLS/lib" "$TOOLS/bin"
+	cp -a "$src" "$TOOLS/lib/meson"
+	printf '#!/bin/sh\nexec python3 "%s/meson.py" "$@"\n' "$TOOLS/lib/meson" >"$TOOLS/bin/meson"
+	chmod +x "$TOOLS/bin/meson"
+	"$TOOLS/bin/meson" --version >/dev/null || die "meson $v of the recipe does not run with $(python3 --version 2>&1)"
+	info "meson $v (recipe) in $TOOLS/bin"
 }
 
 # merged /usr from the start: /bin /sbin /lib /lib64 and /usr/sbin /usr/lib64 are symlinks
