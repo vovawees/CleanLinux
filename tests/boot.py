@@ -90,12 +90,16 @@ def qemu_command(arch, image, code, vars_copy, memory):
     return cmd, kvm
 
 
+# the guest is dead: waiting for a prompt would only run into the timeout
+PANIC = re.compile(r"Kernel panic - not syncing[^\r\n]*")
+
+
 class Console:
     """The serial console of QEMU: everything it prints goes to the log and a buffer."""
 
     def __init__(self, proc, log, echo):
         self.proc, self.log, self.echo = proc, log, echo
-        self.buf, self.pos = "", 0
+        self.buf, self.pos, self.panic = "", 0, None
         self.lock = threading.Condition()
         threading.Thread(target=self._reader, daemon=True).start()
 
@@ -117,7 +121,8 @@ class Console:
             self.lock.notify_all()
 
     def expect(self, pattern, timeout):
-        """wait for PATTERN after the last match; returns the text up to the end of the match"""
+        """wait for PATTERN after the last match; returns the text up to the end of the match,
+        None after the timeout, when QEMU exited or the kernel panicked (self.panic)"""
         rx = re.compile(pattern)
         deadline = time.monotonic() + timeout
         with self.lock:
@@ -127,6 +132,10 @@ class Console:
                     text = self.buf[self.pos:m.end()]
                     self.pos = m.end()
                     return text
+                p = PANIC.search(self.buf, self.pos)
+                if p:
+                    self.panic = p.group(0).strip()
+                    return None
                 left = deadline - time.monotonic()
                 if left <= 0 or self.proc.poll() is not None:
                     return None
@@ -165,7 +174,7 @@ def main():
         con = Console(proc, log, not args.quiet)
         try:
             if con.expect(r"login: ?$|login: ", timeout) is None:
-                failures.append(f"no login prompt within {timeout}s")
+                failures.append(con.panic or f"no login prompt within {timeout}s")
                 return report(failures, log_path, t0)
             print(f"\n--- login prompt after {time.monotonic() - t0:.0f}s", flush=True)
             if args.no_login:

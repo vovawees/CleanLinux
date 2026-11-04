@@ -78,7 +78,7 @@ class Run:
 
     def login(self, user, password, timeout):
         if self.con.expect(r"login: ", timeout) is None:
-            return f"no login prompt within {timeout}s"
+            return self.con.panic or f"no login prompt within {timeout}s"
         self.con.send(user)
         if password is None:
             # no password (the live image): a shell prompt, or PAM asks anyway
