@@ -43,7 +43,7 @@ c sh -c 'findmnt -no FSTYPE /home | grep -qx btrfs'; c sh -c 'findmnt -no FSTYPE
 c sh -c 'findmnt -no FSTYPE /boot | grep -qx vfat'; c test -f /boot/EFI/BOOT/BOOTX64.EFI -o -f /boot/EFI/BOOT/BOOTAA64.EFI;
 c sh -c 'ls /boot/loader/entries/*.conf'; c grep -q 'root=PARTUUID=' /etc/kernel/cmdline;
 c grep -qx HOST /proc/sys/kernel/hostname; c grep -qx HOST /etc/hostname; c test -s /etc/machine-id;
-c sh -c 'id -nG USER | grep -qw wheel'; c test -d /home/USER; c sh -c 'stat -c %U /home/USER | grep -qx USER';
+c sh -c 'id -nG USER | grep -qw wheel'; c sh -c 'id -nG USER | grep -qw audio'; c test -d /home/USER; c sh -c 'stat -c %U /home/USER | grep -qx USER';
 c grep -q '^root:[$]y[$]' /etc/shadow; c test -L /etc/dinit.d/boot.d/dhcpcd;
 for s in early-udevd early-root-rw early-fstab early-seed early-tmpfiles early-clock system login dhcpcd; do
 c dinitctl is-started $s; done;
