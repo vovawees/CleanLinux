@@ -1,7 +1,8 @@
 # Железо: профили и их статус
 
 Профиль описывает устройство: CPU (`CPU_FLAGS`), GPU (`VIDEO_CARDS`), ядро (`KERNEL_FRAGMENT`,
-`KERNEL_CMDLINE`), нужную firmware (`FIRMWARE`) и особенности (`handheld`, `battery`). Профили лежат в
+`KERNEL_CMDLINE`), загрузчик и device tree (`BOOTLOADER`, `DEVICE_TREE`), нужную firmware (`FIRMWARE`) и
+особенности (`handheld`, `battery`). Профили лежат в
 [`profiles/`](../profiles), формат — в [DESIGN.md burn](https://github.com/vovawees/burn/blob/main/docs/DESIGN.md#конфиг-и-профили);
 `burn profile detect` выбирает профиль по DMI и device tree, установщик предлагает его сам.
 
@@ -32,10 +33,10 @@
 | `msi-claw` | x86-64 | описано (UEFI) | описано (iris, ANV; Mesa собирает OpenCL C-ядра через LLVM) | описано (SOF Intel) | описано | описано | описано | описано (`hid-msi`) |
 | `msi-claw-ai-plus` | x86-64 | описано (UEFI) | описано (Xe2: iris, ANV, ядро `xe`) | описано (SOF Intel) | описано | описано | описано | описано (`hid-msi`) |
 | `asus-x540ya` | x86-64 | описано (UEFI) | описано (amdgpu для GCN 1.1: `amdgpu.cik_support=1`) | описано (HDA) | описано | описано | описано | — |
-| `rk3566-handheld` | arm64 | нет (U-Boot с EFI и его рецепт) | описано (panfrost) | описано | описано | — | описано | описано (device tree в ядре: Anbernic, PowKiddy) |
-| `raspberry-pi-5` | arm64 | нет (firmware загрузки Pi или UEFI для Pi 5) | описано (v3d, vc4) | описано | описано | — | — | — |
-| `retroid-pocket-5` | arm64 | нет (ABL + `boot.img`; device tree не в основном ядре) | описано (freedreno, turnip) | нет (UCM Snapdragon) | описано | — | описано | нет |
-| `ayn-odin2` | arm64 | нет (ABL + `boot.img`; device tree не в основном ядре) | описано (freedreno, turnip) | нет (UCM Snapdragon) | описано | — | описано | нет |
+| `rk3566-handheld` | arm64 | описано (U-Boot устройства + `extlinux.conf`, device tree выбирает U-Boot; рецепта U-Boot нет) | описано (panfrost) | описано | описано | — | описано | описано (device tree в ядре: Anbernic, PowKiddy) |
+| `raspberry-pi-5` | arm64 | описано (прошивка Pi 5 из EEPROM: `config.txt`, `bcm2712-rpi-5-b.dtb`) | описано (v3d, vc4) | описано | описано | — | — | — |
+| `retroid-pocket-5` | arm64 | описано (ABL + Android boot image, прошивка в `boot`); device tree не в основном ядре — `devicetree=` в `/etc/cleanlinux/boot.d` | описано (freedreno, turnip) | нет (UCM Snapdragon) | описано | — | описано | нет |
+| `ayn-odin2` | arm64 | описано (ABL + Android boot image, прошивка в `boot`); device tree не в основном ядре — `devicetree=` в `/etc/cleanlinux/boot.d` | описано (freedreno, turnip) | нет (UCM Snapdragon) | описано | — | описано | нет |
 | `mangmi-air-x` | arm64 | нет (ABL + `boot.img`; device tree не в основном ядре) | описано (freedreno) | нет (UCM Snapdragon) | описано | — | описано | нет |
 
 «Описано» для GPU значит: драйвер ядра (`VIDEO_CARDS` → конфиг ядра) и драйверы Mesa (`video_cards_*`) есть в

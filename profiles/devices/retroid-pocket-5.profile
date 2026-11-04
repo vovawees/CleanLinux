@@ -11,3 +11,8 @@ PROFILE_FEATURES+=" handheld battery"
 FIRMWARE="qcom/a650 qcom/sm8250/ ath11k/QCA6390 qca/htbtfw20 qca/htnv20"
 # mainline Snapdragon kernels still lack drivers for some clocks and power domains: keep them on
 KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
+# ABL (the Android boot loader) boots an Android boot image from the boot partition:
+# cleanlinux-boot builds it (header 2, page size 4096) and flashes it with android.partition=.
+# The device tree of the board is not in the mainline kernel yet: devicetree=/path/to/board.dtb in
+# /etc/cleanlinux/boot.d (an absolute path inside the root)
+BOOTLOADER=android

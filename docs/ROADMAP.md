@@ -112,7 +112,7 @@ bootstrap на чужом хосте.
 - [x] питание: amd-pstate EPP / intel_pstate, `platform_profile`, лимиты TDP через стандартные интерфейсы ядра, сон (s2idle), подсветка, батарея — с настройками в `/etc`, без GUI
 - [x] оптимизация под профиль: I/O-планировщик по типу накопителя (udev), zram/zswap по объёму RAM, cpufreq governor, THP
 - [x] Bluetooth и Wi-Fi: bluez, firmware и regdb для беспроводных адаптеров профилей
-- [ ] arm64: загрузка через U-Boot (RK3566), firmware для Raspberry Pi 5, ABL + `boot.img` для Snapdragon (Retroid Pocket 5, AYN Odin 2, Mangmi Air X), device tree из mainline — [#4](https://github.com/vovawees/CleanLinux/issues/4)
+- [x] arm64: загрузка через U-Boot (RK3566: `extlinux.conf`), прошивку Raspberry Pi 5 (`config.txt`), ABL + Android boot image для Snapdragon (заголовки 0–2, осторожная прошивка в `boot`), device tree и оверлеи из mainline — `BOOTLOADER`/`DEVICE_TREE` профиля, `boot.d` в cleanlinux-boot ([#4](https://github.com/vovawees/CleanLinux/issues/4)); проверка на устройствах — [#8](https://github.com/vovawees/CleanLinux/issues/8)
 - [x] определение железа: `burn profile detect` по DMI и device tree, установщик сам предлагает профиль
 - [x] таблица статуса по каждому профилю: загрузка, GPU, звук, Wi-Fi/Bluetooth, сон, батарея, контроллеры; проверка на настоящих устройствах — [#8](https://github.com/vovawees/CleanLinux/issues/8)
 

@@ -161,9 +161,10 @@ KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 | `CARCH`, `CPU_FLAGS` | архитектура и флаги процессора (`-march=znver2`, `-mcpu=cortex-a76.cortex-a55`) |
 | `VIDEO_CARDS` | драйверы GPU: ядро, libdrm и Mesa (`video_cards_*`) |
 | `KERNEL_CONFIG`, `KERNEL_FRAGMENT` | полный конфиг ядра вместо defconfig; фрагмент устройства, накладывается последним |
-| `KERNEL_CMDLINE` | параметры ядра устройства (установщик добавляет их в `/etc/kernel/cmdline`) |
+| `KERNEL_CMDLINE` | параметры ядра устройства (пакет `hardware` кладёт их в `/usr/lib/kernel/cmdline.d/`) |
 | `FIRMWARE` | firmware устройства из linux-firmware (пусто — всё) |
 | `MODULES`, `QUIRKS` | модули для загрузки при старте; дерево `udev/rules.d`, `hwdb.d`, `modprobe.d`, `sysctl.d` устройства |
+| `BOOTLOADER`, `DEVICE_TREE` | чем грузится устройство (`systemd-boot`, `extlinux`, `rpi`, `android`) и его device tree (`vendor/board.dtb` или `vendor/`); пакет `hardware` пишет их в `/usr/lib/cleanlinux/boot.d/` |
 | `PROFILE_FEATURES` | аппаратные features (`handheld`, `battery`), не программный стек |
 
 Значения профиля, которые упоминает рецепт, входят в его BUILDID: ядро для Steam Deck и ядро для ROG Ally —
@@ -182,9 +183,12 @@ KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 - **cleanlinux-boot** ([репозиторий](https://github.com/vovawees/cleanlinux-boot)) — сервисы dinit и помощник на
   C: ранние ФС, fsck, udev и coldplug модулей, hostname, sysctl, seed, часы, sysusers и tmpfiles, getty на tty и
   последовательном порту; swap на zram по объёму RAM (`zram.d`), яркость подсветки, настройки питания
-  (`power.d`: профиль платформы, governor и EPP, пороги заряда, лимиты мощности); триггер burn кладёт ядра в ESP
-  и пишет записи systemd-boot. Корень монтируется без initramfs (`root=PARTUUID=`, драйверы накопителей и btrfs
-  встроены в ядро).
+  (`power.d`: профиль платформы, governor и EPP, пороги заряда, лимиты мощности); триггер burn кладёт ядра в
+  загрузочный раздел под загрузчик устройства из `boot.d`: записи systemd-boot (UEFI), `extlinux.conf` для U-Boot
+  (RK3566), `config.txt` для прошивки Raspberry Pi 5, Android boot image для ABL (Snapdragon) с осторожной
+  прошивкой в раздел `boot`; device tree и оверлеи — из `/usr/lib/modules/<версия>/dtbs`. Корень монтируется без
+  initramfs (`root=PARTUUID=`, драйверы накопителей и btrfs встроены в ядро). На arm64 `vmlinuz` — EFI-программа
+  (zboot), рядом лежит обычный `Image` для U-Boot, прошивки Pi и boot.img.
 - **cleanlinux-install** ([репозиторий](https://github.com/vovawees/cleanlinux-install)) — установщик на C:
   разметка GPT (ESP + btrfs с подтомами `@`, `@home`, `@snapshots`), `burn clone` пакетов живого образа, fstab,
   systemd-boot, root и пользователь, Wi-Fi через iwd, параметры ядра профиля.
