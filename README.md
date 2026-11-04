@@ -129,6 +129,8 @@ bootstrap/bootstrap.sh --profile mangmi-air-x all     # arm64: тулчейн, b
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — из чего состоит система и почему так
 - [docs/ROLLING.md](docs/ROLLING.md) — как устроены обновления rolling release+++
 - [docs/RECIPES.md](docs/RECIPES.md) — как писать рецепты
+- [docs/SPINS.md](docs/SPINS.md) — как сделать сборку поверх базы и что база ей гарантирует
+- [docs/HARDWARE.md](docs/HARDWARE.md) — профили устройств и что на них проверено
 - [docs/ROADMAP.md](docs/ROADMAP.md) — что дальше
 
 ## Лицензия
