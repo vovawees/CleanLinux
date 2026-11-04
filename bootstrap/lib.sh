@@ -439,7 +439,7 @@ disk_spin_suffix() {
 }
 
 disk_image() {
-	local d=$WORK/disk r=$WORK/disk/top/@ img esp_uuid root_uuid fs_uuid root_type console
+	local d=$WORK/disk r=$WORK/disk/top/@ img esp_uuid root_uuid fs_uuid root_type console help
 	local -a mkvfat mkbtrfs
 	img=$WORK/cleanlinux-$ARCH-$PROFILE$(disk_spin_suffix).img
 	esp_uuid=$(</proc/sys/kernel/random/uuid) root_uuid=$(</proc/sys/kernel/random/uuid)
@@ -452,7 +452,9 @@ disk_image() {
 	mapfile -t mkbtrfs < <(disk_tool mkfs.btrfs)
 	((${#mkvfat[@]})) || die "mkfs.vfat (dosfstools) is needed for the disk image"
 	((${#mkbtrfs[@]})) || die "mkfs.btrfs (btrfs-progs) is needed for the disk image"
-	"${mkbtrfs[@]}" --help 2>&1 | grep -q -- '--subvol' || die "mkfs.btrfs is too old for --subvol (btrfs-progs 6.12+)"
+	# not a pipe into grep -q: under pipefail mkfs.btrfs may die of SIGPIPE once grep has its match
+	help=$("${mkbtrfs[@]}" --help 2>&1) || true
+	[[ $help == *--subvol* ]] || die "mkfs.btrfs is too old for --subvol (btrfs-progs 6.12+)"
 
 	# the files of this disk: mounts, the kernel command line, the host name; root logs in
 	# without a password on a fresh image (set one with passwd)
