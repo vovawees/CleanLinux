@@ -87,7 +87,7 @@ bootstrap на чужом хосте.
 - [ ] тест загрузки в QEMU (`tools/check.sh --full`): образ грузится в QEMU до приглашения `login:` (x86_64, затем aarch64) — x86_64 проходит (`tests/boot.py`, `tests/install.py`), aarch64 — [#1](https://github.com/vovawees/CleanLinux/issues/1)
 - [x] сеть: iproute2, dhcpcd, iwd (Wi-Fi), openresolv, сервисы dinit
 - [x] установщик `cleanlinux-install` (C, отдельный репозиторий): разметка, `burn -r /mnt install base`, fstab, загрузчик, пользователь — как `pacstrap` + `genfstab`, без выбора DE
-- [ ] зашифрованный корень (LUKS2): cryptsetup, `cleanlinux-install --encrypt`, тест в QEMU — [#2](https://github.com/vovawees/CleanLinux/issues/2)
+- [ ] зашифрованный корень (LUKS2): cryptsetup, `cleanlinux-install --encrypt`, тест в QEMU — [#2](https://github.com/vovawees/CleanLinux/issues/2): рецепты (json-c, popt, lvm2/libdevmapper, cryptsetup), `--encrypt` в cleanlinux-install 0.5.0 и `tests/install.py --encrypt` готовы, осталось пройти тест на свежем образе
 
 ## Этап 2. Самодостаточная база
 

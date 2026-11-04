@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Install CleanLinux from its disk image onto an empty disk in QEMU, then boot the new disk.
 
-usage: tests/install.py IMAGE [--arch x86_64|aarch64] [--size 8G] [--timeout SECONDS] [--keep DIR]
+usage: tests/install.py IMAGE [--arch x86_64|aarch64] [--encrypt] [--size 8G] [--timeout SECONDS]
+                        [--keep DIR]
 
 1. The image (bootstrap.sh disk) boots with a second, empty disk. As root, cleanlinux-install
    erases the second disk and installs the running system on it (passwords from files, a user,
    a host name, the serial console on the kernel command line), then the VM powers off.
-2. Only the new disk boots, with the same UEFI variables (the installer's boot entry). The test
-   logs in as the new user, then as root, checks mounts, services and packages, and powers off.
-   A service that fails to start or to stop on either system fails the test.
+   --encrypt: the root of the new disk in LUKS2 (cleanlinux-install --encrypt).
+2. Only the new disk boots, with the same UEFI variables (the installer's boot entry); with
+   --encrypt the test types the passphrase when the initramfs asks for it. The test logs in as
+   the new user, then as root, checks mounts, services and packages, and powers off. A service
+   that fails to start or to stop on either system fails the test.
 
 The image is not modified (QEMU snapshot mode). Logs: IMAGE.install.log and IMAGE.installed.log.
 """
@@ -24,24 +27,25 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from boot import Console, find_firmware, nic_args, service_failures  # noqa: E402
 
-ROOT_PW, USER, USER_PW, HOST = "root-pw-1", "anna", "anna-pw-2", "installed"
+ROOT_PW, USER, USER_PW, HOST, LUKS_PW = "root-pw-1", "anna", "anna-pw-2", "installed", "luks-pw-3"
 CONSOLE = {"x86_64": "console=tty0 console=ttyS0,115200", "aarch64": "console=tty0 console=ttyAMA0,115200"}
 
 INSTALL = (
-    f"printf '%s\\n' {ROOT_PW} >/tmp/rpw; printf '%s\\n' {USER_PW} >/tmp/upw; "
-    "cleanlinux-install -y --root-password-file /tmp/rpw --user {user} --user-password-file /tmp/upw "
+    f"printf '%s\\n' {ROOT_PW} >/tmp/rpw; printf '%s\\n' {USER_PW} >/tmp/upw; printf '%s\\n' {LUKS_PW} >/tmp/lpw; "
+    "cleanlinux-install -y --root-password-file /tmp/rpw --user {user} --user-password-file /tmp/upw {encrypt}"
     "--hostname {host} --cmdline '{console}' /dev/vdb; echo INSTALL-RC=$?; burn list | wc -l | sed 's/^/LIVE-PKGS=/'"
 )
+ENCRYPT = "--encrypt --encrypt-password-file /tmp/lpw "
 
 # on the installed system, as root (the markers are built by the shell: the echo of the typed
 # line never matches them)
 CHECKS = r"""F=FAIL D=DONE; c() { "$@" >/dev/null 2>&1 || echo "CHECK-$F: $*"; };
 cat /proc/cmdline; findmnt -rno TARGET,SOURCE,FSTYPE,OPTIONS; cat /etc/fstab;
 c sh -c 'findmnt -no FSTYPE / | grep -qx btrfs'; c sh -c 'findmnt -no OPTIONS / | grep -q "subvol=/@"';
-c sh -c 'findmnt -no OPTIONS / | grep -qw rw'; c sh -c 'findmnt -no SOURCE / | grep -q "^/dev/vda2"';
+c sh -c 'findmnt -no OPTIONS / | grep -qw rw'; c sh -c 'findmnt -no SOURCE / | grep -q "^ROOTSRC"';
 c sh -c 'findmnt -no FSTYPE /home | grep -qx btrfs'; c sh -c 'findmnt -no FSTYPE /.snapshots | grep -qx btrfs';
 c sh -c 'findmnt -no FSTYPE /boot | grep -qx vfat'; c test -f /boot/EFI/BOOT/BOOTX64.EFI -o -f /boot/EFI/BOOT/BOOTAA64.EFI;
-c sh -c 'ls /boot/loader/entries/*.conf'; c grep -q 'root=PARTUUID=' /etc/kernel/cmdline;
+c sh -c 'ls /boot/loader/entries/*.conf'; c grep -q 'CMDLINE' /etc/kernel/cmdline; LUKSCHECKS
 c grep -qx HOST /proc/sys/kernel/hostname; c grep -qx HOST /etc/hostname; c test -s /etc/machine-id;
 c sh -c 'id -nG USER | grep -qw wheel'; c sh -c 'id -nG USER | grep -qw audio'; c test -d /home/USER; c sh -c 'stat -c %U /home/USER | grep -qx USER';
 c grep -q '^root:[$]y[$]' /etc/shadow; c test -L /etc/dinit.d/boot.d/dhcpcd;
@@ -51,6 +55,18 @@ c burn --version; c burn doctor; burn list | wc -l | sed 's/^/INSTALLED-PKGS=/';
 ls /sys/firmware/efi/efivars | grep -c '^Boot[0-9A-F]' | sed 's/^/EFI-BOOT-ENTRIES=/';
 echo "CHECKS-$D"
 """
+# with --encrypt: the container, its initramfs in the boot entry, the mapping
+LUKS_CHECKS = r"""c cryptsetup isLuks --type luks2 /dev/vda2; c sh -c 'ls /boot/cleanlinux/*/initramfs.img';
+c sh -c 'grep -q "^initrd " /boot/loader/entries/*.conf'; c test -f /etc/cleanlinux/initramfs.d/50-luks-root.conf;
+c sh -c 'dmsetup table | grep -q " crypt "';"""
+
+
+def checks(encrypt):
+    text = CHECKS.replace("HOST", HOST).replace("USER", USER)
+    text = text.replace("ROOTSRC", "/dev/mapper/luks-" if encrypt else "/dev/vda2")
+    text = text.replace("CMDLINE", "rd.luks.uuid=" if encrypt else "root=PARTUUID=")
+    text = text.replace("LUKSCHECKS", LUKS_CHECKS if encrypt else "")
+    return " ".join(text.split("\n")).strip()
 
 
 def qemu(arch, code, vars_copy, drives, memory):
@@ -116,6 +132,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("image")
     ap.add_argument("--arch", default=os.uname().machine, choices=sorted(CONSOLE))
+    ap.add_argument("--encrypt", action="store_true", help="the root of the new disk in LUKS2")
     ap.add_argument("--size", default="8G", help="size of the empty disk")
     ap.add_argument("--timeout", type=int, default=0, help="seconds until login: (default: 180 KVM, 1200 TCG)")
     ap.add_argument("--memory", type=int, default=2048, help="MiB")
@@ -140,7 +157,8 @@ def main():
             if err:
                 failures.append("live system: " + err)
                 return report(failures, t0)
-            run.con.send(INSTALL.format(user=USER, host=HOST, console=CONSOLE[args.arch]))
+            run.con.send(INSTALL.format(user=USER, host=HOST, console=CONSOLE[args.arch],
+                                        encrypt=ENCRYPT if args.encrypt else ""))
             out = run.con.expect(r"LIVE-PKGS=\d+", 3600)
             if out is None:
                 failures.append("the installer did not finish")
@@ -163,6 +181,12 @@ def main():
         cmd, kvm = qemu(args.arch, code, vars_copy, [(target, False)], args.memory)
         run = Run(cmd, image + ".installed.log", args.quiet)
         try:
+            if args.encrypt:
+                # cryptsetup in the initramfs: "Enter passphrase for /dev/vda2: "
+                if run.con.expect(r"Enter passphrase for [^\n]*: ?", timeout) is None:
+                    failures.append("installed system: " + (run.con.panic or "the initramfs did not ask for the passphrase"))
+                    return report(failures, t0)
+                run.con.send(LUKS_PW)
             err = run.login(USER, USER_PW, timeout)
             if err:
                 failures.append("installed system: " + err)
@@ -172,7 +196,7 @@ def main():
             if err:
                 failures.append("installed system: " + err)
                 return report(failures, t0)
-            run.con.send(" ".join(CHECKS.replace("HOST", HOST).replace("USER", USER).split("\n")).strip())
+            run.con.send(checks(args.encrypt))
             out = run.con.expect(r"CHECKS-DONE", 600)
             if out is None:
                 failures.append("the checks did not finish")

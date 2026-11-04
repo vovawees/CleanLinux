@@ -3,7 +3,8 @@
 #   tools/check.sh [--recipes DIR]               shellcheck, tests/rolling.sh, tests/smoke.sh
 #   tools/check.sh [--recipes DIR] --full [ARCH] the same, then the whole bootstrap of ARCH (x86_64 by
 #                                                default; hours of CPU) and the boot and install tests
-#                                                of its disk image in QEMU (tests/boot.py, tests/install.py)
+#                                                of its disk image in QEMU (tests/boot.py, tests/install.py,
+#                                                also with --encrypt)
 #   tools/check.sh --quick                       shellcheck only (tools/hooks/pre-push)
 # The recipes default to ../CleanLinux-Recipes/packages.
 set -euo pipefail
@@ -45,3 +46,5 @@ step "boot test: $img"
 python3 tests/boot.py "$img" --arch "$ARCH" --log "build/$ARCH/logs/boot.log"
 step "install test"
 python3 tests/install.py "$img" --arch "$ARCH"
+step "install test, the root in LUKS2"
+python3 tests/install.py "$img" --arch "$ARCH" --encrypt

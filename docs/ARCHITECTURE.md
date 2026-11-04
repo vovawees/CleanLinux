@@ -187,11 +187,15 @@ KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
   загрузочный раздел под загрузчик устройства из `boot.d`: записи systemd-boot (UEFI), `extlinux.conf` для U-Boot
   (RK3566), `config.txt` для прошивки Raspberry Pi 5, Android boot image для ABL (Snapdragon) с осторожной
   прошивкой в раздел `boot`; device tree и оверлеи — из `/usr/lib/modules/<версия>/dtbs`. Корень монтируется без
-  initramfs (`root=PARTUUID=`, драйверы накопителей и btrfs встроены в ядро). На arm64 `vmlinuz` — EFI-программа
-  (zboot), рядом лежит обычный `Image` для U-Boot, прошивки Pi и boot.img.
+  initramfs (`root=PARTUUID=`, драйверы накопителей и btrfs встроены в ядро). Зашифрованному корню нужен
+  маленький initramfs (`initramfs.d`: `modules=dm-crypt`, `files=/usr/bin/cryptsetup`): его `cleanlinux-init`
+  открывает LUKS по `rd.luks.uuid=` (cryptsetup спрашивает пароль на консоли) как `/dev/mapper/luks-<UUID>` и
+  передаёт корень dinit; шифр LUKS2 (aes-xts) встроен в ядро. На arm64 `vmlinuz` — EFI-программа (zboot), рядом
+  лежит обычный `Image` для U-Boot, прошивки Pi и boot.img.
 - **cleanlinux-install** ([репозиторий](https://github.com/vovawees/cleanlinux-install)) — установщик на C:
-  разметка GPT (ESP + btrfs с подтомами `@`, `@home`, `@snapshots`), `burn clone` пакетов живого образа, fstab,
-  systemd-boot, root и пользователь, Wi-Fi через iwd, параметры ядра профиля.
+  разметка GPT (ESP + btrfs с подтомами `@`, `@home`, `@snapshots`; с `--encrypt` btrfs лежит в LUKS2 —
+  cryptsetup, Argon2id), `burn clone` пакетов живого образа, fstab, загрузчик профиля (systemd-boot, extlinux,
+  config.txt, boot.img), root и пользователь, Wi-Fi через iwd, параметры ядра профиля.
 - Пользовательские сервисы сеанса — `dinit --user` через turnstile (он же даёт `XDG_RUNTIME_DIR`), сессионная
   шина D-Bus — пользовательский сервис; сборки включают свои через `/etc/dinit.d/user/boot.d`.
 
@@ -209,6 +213,6 @@ KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 
 Образ проверяют `tests/boot.py` (загрузка в QEMU до входа, монтирования, сервисы, zram, `burn doctor`) и
 `tests/install.py` (установка на второй диск через `cleanlinux-install`, загрузка установленной системы, вход
-root и пользователя).
+root и пользователя; `--encrypt` — то же с корнем в LUKS2 и вводом пароля в initramfs).
 
 Все исходники берутся через `burn unpack` из тех же рецептов, что и у обычных пакетов, — у тулчейна нет отдельных «волшебных» версий. Каждый шаг пишет лог и отметку, повторный запуск продолжает с места остановки. rootfs — это и sysroot кросс-тулчейна, поэтому в образ не попадает ничего с хоста.
