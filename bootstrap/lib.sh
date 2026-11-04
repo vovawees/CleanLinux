@@ -391,6 +391,7 @@ disk_root() {
 	cp -a --reflink=auto "$ROOTFS" "$r"
 	read -ra pkgs <<<"$DISK_PACKAGES"
 	burn -r "$r" --host-deps -y install "${pkgs[@]}"
+	disk_spins "$r"
 	burn -r "$r" doctor
 	# wired network at boot (dinitctl enable dhcpcd)
 	mkdir -p "$r/etc/dinit.d/boot.d"
@@ -410,10 +411,37 @@ disk_root() {
 	info "package cache of the image: $n packages, $(du -sh "$r/var/cache/burn/packages" | cut -f1)"
 }
 
+# disk_spins ROOT: the spins of --spin on top of the base (docs/SPINS.md): burn spin add builds and
+# installs their packages and enables their services; a spin from a directory is a link to it,
+# which the image replaces with a copy
+disk_spins() {
+	local r=$1 s src
+	for s in "${SPINS[@]}"; do
+		burn -r "$r" --host-deps -y spin add "$s"
+	done
+	for s in "$r"/var/lib/burn/spins/*; do
+		if [[ -L $s ]]; then
+			src=$(readlink -f "$s")
+			rm "$s" && cp -a "$src" "$s"
+		fi
+	done
+}
+
+# the spins of the image, for its name: -labwc, -kde+steam
+disk_spin_suffix() {
+	local s names=()
+	for s in "$WORK/disk/top/@/var/lib/burn/spins"/*; do
+		[[ -d $s ]] && names+=("${s##*/}")
+	done
+	((${#names[@]})) || return 0
+	local IFS=+
+	printf -- '-%s' "${names[*]}"
+}
+
 disk_image() {
 	local d=$WORK/disk r=$WORK/disk/top/@ img esp_uuid root_uuid fs_uuid root_type console
 	local -a mkvfat mkbtrfs
-	img=$WORK/cleanlinux-$ARCH-$PROFILE.img
+	img=$WORK/cleanlinux-$ARCH-$PROFILE$(disk_spin_suffix).img
 	esp_uuid=$(</proc/sys/kernel/random/uuid) root_uuid=$(</proc/sys/kernel/random/uuid)
 	fs_uuid=$(</proc/sys/kernel/random/uuid)
 	case $ARCH in

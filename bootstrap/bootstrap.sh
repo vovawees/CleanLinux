@@ -8,13 +8,14 @@
 #   image      burn inside the rootfs, chroot/qemu test, rootfs tarball
 #   disk       bootable disk image: GPT, ESP with systemd-boot + btrfs root (@, @home, @snapshots),
 #              the kernel of the profile; no root needed (DISK_SIZE=4G, ESP_SIZE=512 MiB,
-#              DISK_CMDLINE= replaces the console options); tests/boot.py boots it in QEMU
+#              DISK_CMDLINE= replaces the console options); tests/boot.py boots it in QEMU;
+#              --spin adds a spin (git URL or directory, docs/SPINS.md) on top of the base
 #
 # The rootfs doubles as the toolchain sysroot, so every package is built against the exact
 # glibc it will run with. Nothing from the host ends up in the image.
 #
 # Usage: bootstrap/bootstrap.sh [--arch x86_64|aarch64] [--profile NAME] [--work DIR]
-#                               [--recipes DIR] [-j N] [-v] [stage...]
+#                               [--recipes DIR] [--spin URL|DIR]... [-j N] [-v] [stage...]
 set -euo pipefail
 shopt -s nullglob inherit_errexit
 
@@ -24,13 +25,14 @@ TOP=$(cd "$HERE/.." && pwd)
 . "$HERE/lib.sh"
 
 ARCH='' PROFILE='' WORK='' RECIPES=${BURN_RECIPES:-} JOBS=$(nproc) VERBOSE=0
-STAGES=()
+STAGES=() SPINS=()
 while (($#)); do
 	case $1 in
 		--arch) ARCH=${2:?} && shift 2 ;;
 		--profile) PROFILE=${2:?} && shift 2 ;;
 		--work) WORK=${2:?} && shift 2 ;;
 		--recipes) RECIPES=${2:?} && shift 2 ;;
+		--spin) SPINS+=("${2:?}") && shift 2 ;;
 		-j) JOBS=${2:?} && shift 2 ;;
 		-v) VERBOSE=1 && shift ;;
 		-h | --help)
