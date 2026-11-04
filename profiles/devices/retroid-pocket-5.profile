@@ -6,3 +6,8 @@ CARCH=aarch64
 CPU_FLAGS="-mcpu=cortex-a77"
 VIDEO_CARDS=freedreno
 PROFILE_FEATURES+=" handheld battery"
+# firmware from linux-firmware (paths or name prefixes under /usr/lib/firmware); not yet checked on the device
+# Adreno 650 and the SM8250 DSPs, QCA6390 Wi-Fi (ath11k) + Bluetooth
+FIRMWARE="qcom/a650 qcom/sm8250/ ath11k/QCA6390 qca/htbtfw20 qca/htnv20"
+# mainline Snapdragon kernels still lack drivers for some clocks and power domains: keep them on
+KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
