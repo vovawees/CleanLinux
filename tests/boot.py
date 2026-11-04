@@ -46,8 +46,9 @@ c sh -c 'findmnt -no FSTYPE /home | grep -qx btrfs'; c sh -c 'findmnt -no FSTYPE
 c sh -c 'findmnt -no FSTYPE /boot | grep -qx vfat'; c test -f /boot/loader/loader.conf;
 c sh -c 'ls /dev/disk/by-partuuid | grep -q .'; c test -s /etc/machine-id; c test -s /etc/udev/hwdb.bin;
 c grep -qx cleanlinux /proc/sys/kernel/hostname;
-for s in early-udevd early-root-rw early-fstab early-seed early-tmpfiles early-clock system login; do
+for s in early-udevd early-root-rw early-fstab early-seed early-tmpfiles early-clock zram power system login; do
 c dinitctl is-started $s; done; dinitctl list;
+c grep -q '^/dev/zram0 ' /proc/swaps; cat /proc/swaps;
 c burn --version; c burn doctor; burn list | wc -l; uname -a;
 echo "CHECKS-$D"
 """
