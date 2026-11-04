@@ -91,8 +91,9 @@ feature, путь, каталог сервисов). Добавления (но�
 `hwdata`, `libdisplay-info`, `seatd`, `elogind`, `dbus`, `polkit`, `turnstile`, `pipewire`, `wireplumber`,
 `alsa-lib`, `freetype`, `harfbuzz`, `fontconfig`, `fribidi`, `cairo`, `pango`, `libpng`, `glib`, `libxml2`,
 `libepoxy`, `xwayland` и библиотеки X11 (`libx11`, `libxcb`, …), `xdg-desktop-portal` (бэкенды — в сборках),
-`bubblewrap`, `fuse3`, `gstreamer`, `gst-plugins-base`, `gdk-pixbuf`, `json-glib`. Шрифты, тулкиты (GTK, Qt) и
-приложения — дело сборок.
+`bubblewrap`, `fuse3`, `gstreamer`, `gst-plugins-base`, `gdk-pixbuf`, `json-glib`, `libgudev`, `iio-sensor-proxy`
+(акселерометр и датчик света по D-Bus: поворот экрана; запускается сам, когда udev находит датчик). Шрифты,
+тулкиты (GTK, Qt) и приложения — дело сборок.
 
 **Features** (стабильные имена):
 

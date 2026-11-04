@@ -59,7 +59,7 @@ bootstrap на чужом хосте.
 - [x] [cleanlinux-boot](https://github.com/vovawees/cleanlinux-boot) и [cleanlinux-install](https://github.com/vovawees/cleanlinux-install) на C; вход (Linux-PAM, shadow), eudev, сеть (dhcpcd, iwd), e2fsprogs, btrfs-progs, dosfstools
 - [x] самосборка: `bootstrap native` — система собирает `base-devel` своим компилятором и своим burn
 - [x] железо: FIRMWARE и KERNEL_CMDLINE в профилях, пакет `hardware` (quirks, модули, I/O-планировщик), Mesa/Vulkan по `VIDEO_CARDS`, ALSA и SOF, Bluetooth, NVIDIA (`nonfree`), zram, питание и подсветка
-- [x] платформа для сборок: Wayland и Xwayland, libinput, seatd/elogind, D-Bus, polkit, PipeWire, шрифтовый стек, xdg-desktop-portal, turnstile (`dinit --user`)
+- [x] платформа для сборок: Wayland и Xwayland, libinput, seatd/elogind, D-Bus, polkit, PipeWire, шрифтовый стек, xdg-desktop-portal, turnstile (`dinit --user`), iio-sensor-proxy (датчики, поворот экрана)
 - [x] сборки: `burn spin`, `bootstrap.sh disk --spin`, [SPINS.md](SPINS.md), [шаблон](https://github.com/vovawees/cleanlinux-spin-template) и [сборка labwc](https://github.com/vovawees/cleanlinux-spin-labwc)
 - [x] локальные проверки вместо хостингового CI: `tools/check.sh` в каждом репозитории, `tools/edge.sh` для канала `edge`
 
@@ -108,7 +108,7 @@ bootstrap на чужом хосте.
 - [x] GPU: libdrm, Mesa по `VIDEO_CARDS` (radeonsi/RADV, iris/ANV, nouveau/NVK, freedreno/turnip, panfrost/panvk, v3d/v3dv, lima, etnaviv, virgl/venus), Vulkan loader; LLVM только там, где он нужен
 - [x] NVIDIA: nouveau/NVK из Mesa; проприетарный драйвер — отдельный рецепт категории `nonfree`, выключен по умолчанию
 - [ ] звук: alsa-lib, alsa-utils, alsa-ucm-conf, SOF firmware; UCM-профили для handheld (Snapdragon, Steam Deck) — рецепты готовы; UCM-профили handheld — [#6](https://github.com/vovawees/CleanLinux/issues/6)
-- [ ] ввод: встроенные контроллеры handheld, сенсорные экраны, поворот экрана и акселерометр (iio), libinput quirks — [#7](https://github.com/vovawees/CleanLinux/issues/7)
+- [ ] ввод: встроенные контроллеры handheld, сенсорные экраны, поворот экрана и акселерометр (iio), libinput quirks — драйверы во фрагментах профилей, ориентация панелей и матрицы акселерометров ROG Ally X и Legion Go — в ядре и hwdb eudev, сервис датчиков `iio-sensor-proxy` (platform); остальные матрицы и quirks — по отчётам с устройств, [#7](https://github.com/vovawees/CleanLinux/issues/7)
 - [x] питание: amd-pstate EPP / intel_pstate, `platform_profile`, лимиты TDP через стандартные интерфейсы ядра, сон (s2idle), подсветка, батарея — с настройками в `/etc`, без GUI
 - [x] оптимизация под профиль: I/O-планировщик по типу накопителя (udev), zram/zswap по объёму RAM, cpufreq governor, THP
 - [x] Bluetooth и Wi-Fi: bluez, firmware и regdb для беспроводных адаптеров профилей

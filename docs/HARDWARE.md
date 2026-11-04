@@ -25,7 +25,7 @@
 | `generic-x86_64` | x86-64-v2 | проверено в QEMU (UEFI, systemd-boot, btrfs) | описано (amd, intel, nouveau, virgl) | описано (HDA, SOF) | описано | описано (s2idle) | — | описано |
 | `generic-x86_64-v3` | x86-64-v3 | описано (та же сборка с `-march=x86-64-v3`) | описано | описано | описано | описано | — | описано |
 | `generic-aarch64` | arm64 | описано (UEFI, systemd-boot; в QEMU не проверялось) | описано (freedreno, panfrost, v3d, virgl, …) | описано | описано | — | — | описано |
-| `steam-deck` | x86-64 | описано (UEFI) | описано (radeonsi, RADV) | описано (SOF AMD Vangogh, `alsa-ucm-conf`) | описано (firmware по `FIRMWARE`) | описано | описано | описано (`hid-steam`, датчики) |
+| `steam-deck` | x86-64 | описано (UEFI) | описано (radeonsi, RADV) | описано (LCD: ACP5x + CS35L41, UCM `Valve-Jupiter-1` в `alsa-ucm-conf`; OLED: SOF `nau8821-max` — UCM upstream нет, [#6](https://github.com/vovawees/CleanLinux/issues/6)) | описано (firmware по `FIRMWARE`) | описано | описано | описано (`hid-steam`, датчики) |
 | `rog-ally` | x86-64 | описано (UEFI) | описано (RDNA 3) | описано (HDA + усилители CS35L41) | описано (MT7922) | описано | описано | описано (`hid-asus`, BMI323) |
 | `rog-xbox-ally-x` | x86-64 | описано (UEFI) | описано (RDNA 3.5) | описано | описано | описано | описано | описано |
 | `legion-go` | x86-64 | описано (UEFI) | описано (RDNA 3) | описано (CS35L41) | описано | описано | описано | описано (`hid-lenovo-go`, BMI323) |
@@ -33,7 +33,7 @@
 | `msi-claw` | x86-64 | описано (UEFI) | описано (iris, ANV; Mesa собирает OpenCL C-ядра через LLVM) | описано (SOF Intel) | описано | описано | описано | описано (`hid-msi`) |
 | `msi-claw-ai-plus` | x86-64 | описано (UEFI) | описано (Xe2: iris, ANV, ядро `xe`) | описано (SOF Intel) | описано | описано | описано | описано (`hid-msi`) |
 | `asus-x540ya` | x86-64 | описано (UEFI) | описано (amdgpu для GCN 1.1: `amdgpu.cik_support=1`) | описано (HDA) | описано | описано | описано | — |
-| `rk3566-handheld` | arm64 | описано (U-Boot устройства + `extlinux.conf`, device tree выбирает U-Boot; рецепта U-Boot нет) | описано (panfrost) | описано | описано | — | описано | описано (device tree в ядре: Anbernic, PowKiddy) |
+| `rk3566-handheld` | arm64 | описано (U-Boot устройства + `extlinux.conf`, device tree выбирает U-Boot; рецепта U-Boot нет) | описано (panfrost) | описано (RK817, UCM `rk817_ext`/`rk817_int`) | описано | — | описано | описано (device tree в ядре: Anbernic, PowKiddy) |
 | `raspberry-pi-5` | arm64 | описано (прошивка Pi 5 из EEPROM: `config.txt`, `bcm2712-rpi-5-b.dtb`) | описано (v3d, vc4) | описано | описано | — | — | — |
 | `retroid-pocket-5` | arm64 | описано (ABL + Android boot image, прошивка в `boot`); device tree не в основном ядре — `devicetree=` в `/etc/cleanlinux/boot.d` | описано (freedreno, turnip) | нет (UCM Snapdragon) | описано | — | описано | нет |
 | `ayn-odin2` | arm64 | описано (ABL + Android boot image, прошивка в `boot`); device tree не в основном ядре — `devicetree=` в `/etc/cleanlinux/boot.d` | описано (freedreno, turnip) | нет (UCM Snapdragon) | описано | — | описано | нет |
