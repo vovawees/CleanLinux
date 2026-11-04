@@ -73,7 +73,11 @@
   ROG Ally, Legion Go S и MSI Claw панель горизонтальная; у arm64-плат поворот задан в device tree;
 - hwdb eudev: матрица акселерометра ROG Ally X и Legion Go, датчики Steam Deck, клавиши Legion Go S и
   MSI Claw;
-- геймпады: `hid-steam`, `hid-asus`, `hid-lenovo-go`, `hid-lenovo-go-s`, `hid-msi`, `xpad` (их ID в ядре).
+- геймпады: `hid-steam`, `hid-asus`, `hid-lenovo-go`, `hid-lenovo-go-s`, `hid-msi`, `xpad` (их ID в ядре);
+- libinput 1.32: своих quirks для этих handheld в нём нет, и по умолчанию они не нужны — геймпады libinput
+  не обрабатывает (их читают SDL и Steam через evdev/hidraw), сенсорные экраны и тачпад Legion Go идут
+  по общим правилам; quirk появляется в `quirks/libinput/` профиля по отчёту с устройства
+  ([#7](https://github.com/vovawees/CleanLinux/issues/7)).
 
 ## Как проверить устройство
 
