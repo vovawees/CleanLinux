@@ -282,13 +282,20 @@ native_toolchain() {
 	burn -r "$ROOTFS" --host-deps -y install "${pkgs[@]}"
 }
 
-# in_rootfs COMMAND...: run a command of the rootfs inside it, as its root, with a clean
-# environment; sources are downloaded by the rootfs's own curl (the host's resolv.conf)
-in_rootfs() {
-	[[ $ARCH == "$(uname -m)" ]] || [[ -e /proc/sys/fs/binfmt_misc/qemu-$ARCH ]] ||
-		die "the native stage runs $ARCH binaries: same architecture or qemu-user with binfmt_misc"
-	mkdir -p "$ROOTFS/var/cache/burn" "$ROOTFS/var/lib/burn/bootstrap-recipes" "$BURN_CACHE"
-	[[ -e $ROOTFS/etc/resolv.conf ]] || : >"$ROOTFS/etc/resolv.conf.bootstrap"
+# can_run_target: the machine runs binaries of the target (the same architecture, or qemu-user
+# registered with binfmt_misc)
+can_run_target() {
+	[[ $ARCH == "$(uname -m)" ]] || [[ -e /proc/sys/fs/binfmt_misc/qemu-$ARCH ]]
+}
+
+# in_root ROOT COMMAND...: run a command of ROOT inside it, as its root, with a clean environment;
+# sources are downloaded by the root's own curl (the host's resolv.conf). in_rootfs: the rootfs
+in_root() {
+	local r=$1
+	shift
+	can_run_target || die "the native builds run $ARCH binaries: same architecture or qemu-user with binfmt_misc"
+	mkdir -p "$r/var/cache/burn" "$r/var/lib/burn/bootstrap-recipes" "$BURN_CACHE"
+	[[ -e $r/etc/resolv.conf ]] || : >"$r/etc/resolv.conf.bootstrap"
 	# shellcheck disable=SC2016
 	unshare --map-root-user --mount -- /bin/sh -c '
 		set -e
@@ -304,16 +311,22 @@ in_rootfs() {
 		fi
 		exec chroot "$r" /usr/bin/env -i PATH=/usr/bin HOME=/root TERM=dumb LC_ALL=C.UTF-8 \
 			BURN_WORK=/var/cache/burn/work BURN_JOBS="$jobs" "$@"
-	' sh "$ROOTFS" "$BURN_CACHE" "$RECIPES" "$JOBS" "$@"
+	' sh "$r" "$BURN_CACHE" "$RECIPES" "$JOBS" "$@"
 }
 
-native_cleanup() {
-	if [[ -e $ROOTFS/etc/resolv.conf.bootstrap ]]; then
-		rm -f "$ROOTFS/etc/resolv.conf.bootstrap"
-		[[ ! -L $ROOTFS/etc/resolv.conf ]] || rm -f "$ROOTFS/etc/resolv.conf"
+in_rootfs() { in_root "$ROOTFS" "$@"; }
+
+# root_cleanup ROOT: what in_root left in ROOT (the host's resolv.conf, the recipes' mount point)
+root_cleanup() {
+	local r=$1
+	if [[ -e $r/etc/resolv.conf.bootstrap ]]; then
+		rm -f "$r/etc/resolv.conf.bootstrap"
+		[[ ! -L $r/etc/resolv.conf ]] || rm -f "$r/etc/resolv.conf"
 	fi
-	rmdir "$ROOTFS/var/lib/burn/bootstrap-recipes" 2>/dev/null || true
+	rmdir "$r/var/lib/burn/bootstrap-recipes" 2>/dev/null || true
 }
+
+native_cleanup() { root_cleanup "$ROOTFS"; }
 
 native_build() {
 	local -a pkgs
@@ -510,13 +523,37 @@ package_cache() {
 	info "package cache of the image: $n packages, $(du -sh "$r/var/cache/burn/packages" | cut -f1)"
 }
 
+# spin_add ROOT SPIN: burn spin add. When this machine runs the target's binaries and ROOT has
+# base-devel, ROOT builds the spin itself with its own compiler, as a device does (no cross builds
+# of GTK and the tools it runs while it builds); otherwise burn cross-compiles it from here. A
+# spin from a directory is built from a copy inside ROOT, which then replaces burn's link to it.
+spin_add() {
+	local r=$1 s=$2 l src=/var/lib/burn/bootstrap-spin
+	if can_run_target && [[ -d $r/var/lib/burn/installed/base-devel ]]; then
+		info "spin $s: built inside the root (native)"
+		if [[ -d $s ]]; then
+			rm -rf "${r:?}$src" && cp -a "$s" "$r$src"
+			in_root "$r" /usr/bin/burn -R /var/lib/burn/bootstrap-recipes -j "$JOBS" -y spin add "$src"
+			for l in "$r"/var/lib/burn/spins/*; do
+				if [[ -L $l && $(readlink "$l") == "$src" ]]; then rm "$l" && mv "$r$src" "$l"; fi
+			done
+			rm -rf "${r:?}$src"
+		else
+			in_root "$r" /usr/bin/burn -R /var/lib/burn/bootstrap-recipes -j "$JOBS" -y spin add "$s"
+		fi
+		root_cleanup "$r"
+	else
+		burn -r "$r" --host-deps -y spin add "$s"
+	fi
+}
+
 # disk_spins ROOT: the spins of --spin on top of the base (docs/SPINS.md): burn spin add builds and
 # installs their packages and enables their services; a spin from a directory is a link to it,
 # which the image replaces with a copy
 disk_spins() {
 	local r=$1 s src
 	for s in "${SPINS[@]}"; do
-		burn -r "$r" --host-deps -y spin add "$s"
+		spin_add "$r" "$s"
 	done
 	for s in "$r"/var/lib/burn/spins/*; do
 		if [[ -L $s ]]; then
@@ -609,96 +646,201 @@ stage_disk() {
 	step 97-disk-image disk_image
 }
 
-# ---- iso: the live system of a USB stick or a DVD, which installs itself ----
+# ---- live: the live system of a USB stick, which installs itself ----
 #
-# A hybrid ISO 9660 image (xorriso) for UEFI PCs, Secure Boot off: written as it is onto a USB
-# stick (dd, Rufus in DD mode, balenaEtcher), burnt to a DVD, or the CD of a virtual machine. An
-# EFI system partition appended to it (in the GPT for the stick, the El Torito image for the DVD)
-# holds systemd-boot, the kernel and an initramfs; the system is /cleanlinux/live/rootfs.sfs
-# (squashfs, zstd), which the initramfs of cleanlinux-boot mounts under an overlay with a tmpfs
-# on top (root=live:LABEL=CLEANLINUX_<date>). There root logs in by itself, the installer with
-# screens (cleanlinux-setup) starts on the main console, and the package cache lets burn clone
-# copy the very same system onto the disk without a network. No root privileges are needed.
-# docs/INSTALL.md is the user's side of it, tests/iso.py installs from it in QEMU.
+# A disk image for UEFI PCs, boards and handhelds (Secure Boot off), written as it is onto a USB
+# stick or an SD card (dd, Rufus in DD mode, balenaEtcher) or given to a virtual machine as a disk:
+# GPT with an EFI system partition (systemd-boot, the kernel, an initramfs with the init of
+# cleanlinux-boot) and a root partition (btrfs compressed with zstd, or ext4) labelled
+# CL_LIVE_<date>, which holds the system as a plain tree and the layers over it:
 #
-#   ISO_PACKAGES     on top of DISK_PACKAGES: firmware and the Wi-Fi regulatory database
-#   ISO_FIRMWARE     the firmware it carries (below; "all": the whole of linux-firmware, 2 GB more)
-#   ISO_COMPRESSION  the mksquashfs options of the image
-#   ISO_LABEL        the volume label the initramfs looks for (CLEANLINUX_<date>)
-#   ISO_BASE_DEVEL   1: the ISO carries base-devel (the native stage runs first when the rootfs
+#   @/             the system the installer copies: base, base-devel, the kernel, firmware
+#   nonfree/       the proprietary drivers (LIVE_NONFREE), on by default (cleanlinux.live.nonfree=0)
+#   spins/NAME/    what a spin adds (--spin: a desktop), the one cleanlinux.live.spin=NAME names
+#   live/          what makes it live: root logs in by itself, the installer opens on the console
+#
+# The init of the initramfs finds the partition by its label and mounts an overlay of live/ over
+# spins/NAME/ over nonfree/ over @/ with a tmpfs on top (root=live:LABEL=...; cleanlinux.live.toram
+# copies it into memory first). cleanlinux-install copies @/ and the chosen layers onto the disk:
+# no network, no package cache, no burn clone. nonfree/ and spins/NAME/ are made against @/ each
+# (bootstrap/layer.py: the files a burn install adds or changes, whiteouts for what it removes), so
+# a spin works with or without the proprietary drivers. No root privileges are needed.
+# docs/INSTALL.md is the user's side of it, tests/live.py installs from it in QEMU.
+#
+#   LIVE_PACKAGES    on top of DISK_PACKAGES: firmware and the Wi-Fi regulatory database
+#   LIVE_FIRMWARE    the firmware of a generic profile (below; "all": the whole of linux-firmware,
+#                    2 GB more); a device profile keeps its own FIRMWARE
+#   LIVE_NONFREE     the proprietary packages of nonfree/ (x86_64: NVIDIA, the Steam Deck's DSP)
+#   LIVE_FS          btrfs (compressed with LIVE_COMPRESS, zstd:15) or ext4 (no compression)
+#   LIVE_LABEL       the label the init looks for (CL_LIVE_<date>, up to 16 of A-Z, 0-9 and _)
+#   LIVE_BASE_DEVEL  1: the system carries base-devel (the native stage runs first when the rootfs
 #                    has not got it), so the systems it installs build their updates and spins
-#                    themselves; 0: no native stage for it, the ISO has what the rootfs has
+#                    themselves; 0: no native stage for it, the system has what the rootfs has
 
-ISO_PACKAGES=${ISO_PACKAGES:-linux-firmware wireless-regdb}
-ISO_BASE_DEVEL=${ISO_BASE_DEVEL:-1}
-ISO_COMPRESSION=${ISO_COMPRESSION:--comp zstd -Xcompression-level 15 -b 1M}
-# FIRMWARE of the linux-firmware recipe (prefixes under /usr/lib/firmware) for the ISO, kept in
+LIVE_PACKAGES=${LIVE_PACKAGES:-linux-firmware wireless-regdb}
+LIVE_BASE_DEVEL=${LIVE_BASE_DEVEL:-1}
+LIVE_FS=${LIVE_FS:-btrfs}
+LIVE_COMPRESS=${LIVE_COMPRESS:-zstd:15}
+# FIRMWARE of the linux-firmware recipe (prefixes under /usr/lib/firmware), kept in
 # /etc/burn/burn.conf of the live system and of the systems it installs (unless they get a device
-# profile with a list of its own): the GPUs (AMD, Intel, the GSP firmware nouveau needs for NVIDIA
-# Turing and newer), AMD microcode, and the Wi-Fi, Bluetooth and Ethernet chips of PCs and laptops
-# (Intel, Realtek, MediaTek, Qualcomm Atheros, Broadcom, Marvell)
-ISO_FIRMWARE_PCS=(amdgpu/ radeon/ i915/ xe/ nvidia/ amd-ucode/ intel/iwlwifi/ intel/ibt- rtw88/ rtw89/ rtlwifi/
-	rtl_bt/ rtl_nic/ mediatek/BT_RAM_CODE_MT79 mediatek/WIFI_ mediatek/mt7925/ mediatek/mt7927/ mediatek/mt76
+# profile with a list of its own). PCs: the GPUs (AMD, Intel, the GSP firmware nouveau needs for
+# NVIDIA Turing and newer), AMD microcode, the Wi-Fi, Bluetooth and Ethernet chips of PCs and
+# laptops (Intel, Realtek, MediaTek, Qualcomm Atheros, Broadcom, Marvell), the speaker amplifiers
+# of laptops and handhelds (Cirrus CS35L41/CS35L56). ARM: Adreno GPUs and the DSPs of Snapdragon
+# handhelds and laptops, Mali (panthor), the Wi-Fi and Bluetooth of boards and handhelds
+LIVE_FIRMWARE_PCS=(amdgpu/ radeon/ i915/ xe/ nvidia/ amd-ucode/ intel/iwlwifi/ iwlwifi- intel/ibt- rtw88/ rtw89/
+	rtlwifi/ rtl_bt/ rtl_nic/ mediatek/BT_RAM_CODE_MT79 mediatek/WIFI_ mediatek/mt7925/ mediatek/mt7927/ mediatek/mt76
 	mediatek/mt7915_ mediatek/mt7916_ ath9k_htc/ ar3k/ ath10k/QCA6174/ ath10k/QCA9377/ ath10k/QCA988X/
-	ath11k/WCN6855/ ath11k/QCA2066/ ath11k/QCA6390/ ath12k/WCN7850/ qca/ brcm/ tigon/ mrvl/pcie mrvl/sd)
-ISO_FIRMWARE=${ISO_FIRMWARE-${ISO_FIRMWARE_PCS[*]}}
+	ath11k/WCN6855/ ath11k/QCA2066/ ath11k/QCA6390/ ath12k/WCN7850/ qca/ brcm/ tigon/ mrvl/pcie mrvl/sd
+	cirrus/cs35l41 cirrus/cs35l56)
+LIVE_FIRMWARE_ARM=(qcom/a3 qcom/a5 qcom/a6 qcom/a7 qcom/gmu_ qcom/venus- qcom/vpu qcom/sm8150/ qcom/sm8250/
+	qcom/sm8350/ qcom/sm8450/ qcom/sm8550/ qcom/sm8650/ qcom/qrb4210/ qcom/qcm2290/ qcom/sdm845/ qcom/sc8280xp/
+	qcom/x1e80100/ ath10k/WCN3990/ ath11k/ ath12k/ qca/ brcm/ cypress/ rtw88/ rtw89/ rtlwifi/ rtl_bt/ rtl_nic/
+	mediatek/mt76 mediatek/WIFI_ mediatek/BT_RAM_CODE_ arm/mali/ rockchip/ meson/ amlogic/ ti-connectivity/)
 
-iso_check() {
-	local c help missing=()
-	for c in xorriso mksquashfs; do
-		command -v "$c" >/dev/null || missing+=("$c")
-	done
-	((${#missing[@]} == 0)) || die "missing host tools for the ISO: ${missing[*]} (xorriso, squashfs-tools)"
-	help=$(mksquashfs -help 2>&1) || true
-	[[ $help == *zstd* ]] || die "mksquashfs cannot compress with zstd (squashfs-tools 4.4 or newer, with zstd)"
-	[[ ${ISO_LABEL:-CLEANLINUX} =~ ^[A-Z0-9_]{1,32}$ ]] || die "ISO_LABEL=$ISO_LABEL: up to 32 of A-Z, 0-9 and _"
+# live_defaults: LIVE_FIRMWARE and LIVE_NONFREE of the architecture, unless they are set
+live_defaults() {
+	case $ARCH in
+		x86_64)
+			LIVE_FIRMWARE=${LIVE_FIRMWARE-${LIVE_FIRMWARE_PCS[*]}}
+			LIVE_NONFREE=${LIVE_NONFREE-nvidia steamdeck-dsp}
+			;;
+		*)
+			LIVE_FIRMWARE=${LIVE_FIRMWARE-${LIVE_FIRMWARE_ARM[*]}}
+			LIVE_NONFREE=${LIVE_NONFREE-}
+			;;
+	esac
+}
+
+# live_mkfs: mkfs of LIVE_FS for the root partition, one word per line as disk_tool gives it
+live_mkfs() {
+	case $LIVE_FS in
+		btrfs) disk_tool mkfs.btrfs ;;
+		ext4) disk_tool mkfs.ext4 ;;
+	esac
+}
+
+live_check() {
+	local help t
+	local -a mk
+	[[ $LIVE_FS == btrfs || $LIVE_FS == ext4 ]] || die "LIVE_FS=$LIVE_FS: btrfs or ext4"
+	[[ -z ${LIVE_LABEL:-} || $LIVE_LABEL =~ ^[A-Z0-9_]{1,16}$ ]] || die "LIVE_LABEL=$LIVE_LABEL: up to 16 of A-Z, 0-9 and _"
+	command -v python3 >/dev/null || die "python3 is needed (bootstrap/layer.py makes the layers of the medium)"
+	mapfile -t mk < <(live_mkfs)
+	((${#mk[@]})) || die "mkfs.$LIVE_FS is needed for the live image (btrfs-progs or e2fsprogs)"
+	if [[ $LIVE_FS == btrfs ]]; then
+		# not a pipe into grep -q: under pipefail mkfs.btrfs may die of SIGPIPE once grep has its match
+		help=$("${mk[@]}" --help 2>&1) || true
+		[[ $help == *--compress* && $help == *--shrink* ]] ||
+			die "mkfs.btrfs lacks --rootdir --compress --shrink (btrfs-progs 6.13+, or the rootfs's own)"
+	else
+		for t in e2fsck resize2fs dumpe2fs; do
+			[[ -n $(disk_tool "$t") ]] || die "$t (e2fsprogs) is needed for an ext4 live image"
+		done
+	fi
 	# the boot partition is made as the disk image's is (mtools, the systemd-boot build)
 	disk_check
 }
 
-iso_root() {
-	local d=$WORK/iso r=$WORK/iso/root
-	local -a pkgs
+# live_firmware ROOT: FIRMWARE of LIVE_FIRMWARE into burn.conf, unless the profile lists its own
+live_firmware() {
+	local r=$1 own
+	[[ -n $LIVE_FIRMWARE && $LIVE_FIRMWARE != all ]] || return 0
+	own=$(burn -r "$r" profile show | awk '$1 == "firmware" { print $2 }')
+	if [[ -n $own && $own != - ]]; then
+		info "the profile $PROFILE lists its firmware: LIVE_FIRMWARE is not used"
+		return 0
+	fi
+	printf '%s\n' '' \
+		'# the firmware of the CleanLinux live image (linux-firmware): GPUs, Wi-Fi, Bluetooth, sound;' \
+		'# without this line linux-firmware is built whole (2 GB), or as the device profile lists it' \
+		"FIRMWARE=\"$LIVE_FIRMWARE\"" >>"$r/etc/burn/burn.conf"
+}
+
+# live_spin_names ROOT: the spins of ROOT (burn spin add), those of a directory made copies
+live_spin_names() {
+	local s src
+	for s in "$1/var/lib/burn/spins"/*; do
+		if [[ -L $s ]]; then
+			src=$(readlink -f "$s")
+			rm "$s" && cp -a "$src" "$s"
+		fi
+		[[ -d $s ]] && printf '%s\n' "${s##*/}"
+	done
+}
+
+live_root() {
+	local d=$WORK/live t=$WORK/live/top r=$WORK/live/top/@ w=$WORK/live/work s name
+	local -a pkgs names
 	if [[ -d $d ]]; then chmod -R u+w "$d" && rm -rf "$d"; fi
-	mkdir -p "$d"
+	mkdir -p "$t"
 	install_profiles
 	cp -a --reflink=auto "$ROOTFS" "$r"
 	if [[ -n ${DISK_PACKAGE_FEATURES:-} ]]; then
 		printf '%s\n' "$DISK_PACKAGE_FEATURES" >"$r/etc/burn/package.features"
 	fi
-	if [[ $ISO_FIRMWARE != all ]]; then
-		printf '%s\n' '' \
-			'# the firmware of the CleanLinux ISO (linux-firmware): GPUs, Wi-Fi, Bluetooth and Ethernet of PCs;' \
-			'# without this line linux-firmware is built whole (2 GB), or as the device profile lists it' \
-			"FIRMWARE=\"$ISO_FIRMWARE\"" >>"$r/etc/burn/burn.conf"
-	fi
-	read -ra pkgs <<<"$DISK_PACKAGES $ISO_PACKAGES"
+	live_firmware "$r"
+	read -ra pkgs <<<"$DISK_PACKAGES $LIVE_PACKAGES"
 	burn -r "$r" --host-deps -y install "${pkgs[@]}"
-	disk_spins "$r"
 	burn -r "$r" doctor
-	# wired network at boot (dinitctl enable dhcpcd)
+	# wired network at boot (dinitctl enable dhcpcd), here and on the systems it installs
 	mkdir -p "$r/etc/dinit.d/boot.d"
 	ln -sfn /usr/lib/dinit.d/dhcpcd "$r/etc/dinit.d/boot.d/dhcpcd"
-	package_cache "$r"
-	live_config "$r"
-	du -sh "$r" "$r/usr/lib/firmware" "$r/usr/lib/modules" "$r/var/cache/burn/packages"
+	rm -rf "$r/var/cache/burn"/*
+
+	# the proprietary drivers: what installing them adds to @
+	if [[ -n $LIVE_NONFREE ]]; then
+		cp -a --reflink=auto "$r" "$w"
+		printf '%s\n' '' '# the proprietary drivers of the live image (its layer nonfree/)' 'ALLOW_NONFREE=1' \
+			>>"$w/etc/burn/burn.conf"
+		read -ra pkgs <<<"$LIVE_NONFREE"
+		burn -r "$w" --host-deps -y install "${pkgs[@]}"
+		burn -r "$w" doctor
+		rm -rf "$w/var/cache/burn"/*
+		python3 "$HERE/layer.py" "$r" "$w" "$t/nonfree"
+		chmod -R u+w "$w" && rm -rf "$w"
+	fi
+
+	# the spins: what each adds to @, a layer of its own
+	for s in "${SPINS[@]}"; do
+		cp -a --reflink=auto "$r" "$w"
+		spin_add "$w" "$s"
+		mapfile -t names < <(live_spin_names "$w")
+		((${#names[@]} == 1)) || die "the spin $s: ${#names[@]} spins in the root after burn spin add"
+		name=${names[0]}
+		[[ ! -e $t/spins/$name ]] || die "the spin $name twice"
+		burn -r "$w" doctor
+		rm -rf "$w/var/cache/burn"/*
+		mkdir -p "$t/spins"
+		python3 "$HERE/layer.py" "$r" "$w" "$t/spins/$name"
+		chmod -R u+w "$w" && rm -rf "$w"
+	done
+
+	live_layer "$r" "$t/live"
+	du -sh "$t"/* "$t"/spins/* "$r/usr/lib/firmware" "$r/usr/lib/modules"
 }
 
-# live_config ROOT: what makes ROOT a live system: root without a password and logged in on the
-# consoles (agetty --autologin), the installer at that login (cleanlinux-setup --auto: on the main
-# console, once), Wi-Fi (iwd) next to wired networking, the hints of /etc/motd. The installed
-# system has none of it: cleanlinux-install makes it of the packages (burn clone) and the choices.
-live_config() {
-	local r=$1 agetty=/usr/bin/agetty
+# live_layer ROOT LAYER: what makes ROOT a live system, a layer of its own: root logged in on the
+# consoles (agetty --autologin; root keeps no password, there is none to type), the installer at
+# that login (cleanlinux-setup --auto: on the main console, once), Wi-Fi (iwd) next to wired
+# networking, the hints of /etc/motd. The installed system has none of it: cleanlinux-install
+# copies @/ and the layers it chose, then sets up the users, the disk and the boot.
+live_layer() {
+	local r=$1 l=$2 agetty=/usr/bin/agetty dir
 	[[ -x $r$agetty ]] || die "$agetty is not in the root"
-	sed -i 's/^root:[^:]*:/root::/' "$r/etc/shadow"
-	echo cleanlinux-live >"$r/etc/hostname"
-	printf '%s\n' '# the live system: / is the image of the medium under an overlay with a tmpfs (cleanlinux-boot)' \
-		'tmpfs /tmp tmpfs nosuid,nodev 0 0' >"$r/etc/fstab"
+	# the directories with the modes of the root, which an overlay takes from the top layer
+	for dir in etc etc/dinit.d etc/dinit.d/boot.d root; do
+		mkdir -p "$l/$dir"
+		if [[ -d $r/$dir ]]; then chmod --reference="$r/$dir" "$l/$dir"; fi
+	done
+	chmod 0700 "$l/root"
+	echo cleanlinux-live >"$l/etc/hostname"
+	printf '%s\n' '# the live system: / is an overlay of the layers of the medium with a tmpfs (cleanlinux-boot)' \
+		'tmpfs /tmp tmpfs nosuid,nodev 0 0' >"$l/etc/fstab"
 	if [[ -e $r/usr/lib/dinit.d/iwd ]]; then
-		ln -sfn /usr/lib/dinit.d/iwd "$r/etc/dinit.d/boot.d/iwd"
+		ln -sfn /usr/lib/dinit.d/iwd "$l/etc/dinit.d/boot.d/iwd"
 	fi
-	cat >"$r/etc/dinit.d/getty" <<-EOF
+	cat >"$l/etc/dinit.d/getty" <<-EOF
 		# CleanLinux live: root logs in by itself on the virtual terminals (getty@tty1, getty@tty2...)
 		type = process
 		command = $agetty --noclear --autologin root \$1 linux
@@ -707,7 +849,7 @@ live_config() {
 		termsignal = HUP
 		depends-on: system
 	EOF
-	cat >"$r/etc/dinit.d/serial-getty" <<-EOF
+	cat >"$l/etc/dinit.d/serial-getty" <<-EOF
 		# CleanLinux live: root logs in by itself on the serial consoles (serial-getty@ttyS0...)
 		type = process
 		command = $agetty -L --autologin root 115200,57600,38400,9600 \$1 vt220
@@ -716,14 +858,13 @@ live_config() {
 		termsignal = HUP
 		depends-on: system
 	EOF
-	mkdir -p "$r/root" && chmod 0700 "$r/root"
-	cat >"$r/root/.bash_profile" <<-'EOF'
+	cat >"$l/root/.bash_profile" <<-'EOF'
 		# CleanLinux live: the installer opens on the main console when root logs in there, once
 		# (closed, it opens again with: cleanlinux-setup)
 		[[ -f ~/.bashrc ]] && . ~/.bashrc
 		cleanlinux-setup --auto
 	EOF
-	cat >"$r/etc/motd" <<-'EOF'
+	cat >"$l/etc/motd" <<-'EOF'
 
 		CleanLinux live system
 
@@ -733,14 +874,14 @@ live_config() {
 		  loadkeys ru          a keyboard layout for the console (setfont cyr-sun16: Cyrillic)
 		  poweroff, reboot
 
-		Root has no password here, and all changes stay in memory.
+		Everything changed here stays in memory and is gone after a reboot.
 
 	EOF
 }
 
-# iso_entry ENTRY N TITLE OPTIONS: the boot entry of kernel sync with another title, place and
+# live_entry ENTRY N TITLE OPTIONS: the boot entry of kernel sync with another title, place and
 # more kernel options
-iso_entry() {
+live_entry() {
 	awk -v n="$2" -v title="$3" -v extra="$4" '
 		/^title / { print "title " title; next }
 		/^sort-key / { print "sort-key cleanlinux-live-" n; next }
@@ -748,86 +889,151 @@ iso_entry() {
 		{ print }' "$1"
 }
 
-iso_image() {
-	local d=$WORK/iso r=$WORK/iso/root date label iso entry e serial efi kib
-	local -a mkvfat comp
+# live_esp ROOT LABEL ESP: systemd-boot, the kernel and an initramfs with the init that finds the
+# medium by its label and mounts its layers (root=live:), as kernel sync makes them for ROOT with
+# the live settings; ROOT is left as it was (it is the system the installer copies)
+live_esp() {
+	local r=$1 label=$2 esp=$3 x saved=$WORK/live/saved
+	local -a made=()
+	rm -rf "$saved" "$esp" && mkdir -p "$saved" "$esp"
+	if [[ -e $r/etc/kernel/cmdline ]]; then mv "$r/etc/kernel/cmdline" "$saved/cmdline"; fi
+	if [[ -e $r/var/lib/cleanlinux ]]; then mv "$r/var/lib/cleanlinux" "$saved/var-lib-cleanlinux"; fi
+	for x in etc/kernel etc/cleanlinux etc/cleanlinux/initramfs.d; do
+		if [[ ! -d $r/$x ]]; then mkdir "$r/$x" && made=("$x" "${made[@]}"); fi
+	done
+	printf '%s\n' '# the live system (bootstrap.sh live): the init that finds the medium and mounts its layers' \
+		'enable=yes' >"$r/etc/cleanlinux/initramfs.d/10-live.conf"
+	printf '%s\n' "root=live:LABEL=$label" >"$r/etc/kernel/cmdline"
+	run_target "$r/usr/bin/cleanlinux-boot" --root "$r" kernel sync --esp "$esp"
+	rm -rf "$r/etc/cleanlinux/initramfs.d/10-live.conf" "$r/etc/kernel/cmdline" "$r/var/lib/cleanlinux"
+	for x in "${made[@]}"; do rmdir "$r/$x"; done
+	if [[ -e $saved/cmdline ]]; then mv "$saved/cmdline" "$r/etc/kernel/cmdline"; fi
+	if [[ -e $saved/var-lib-cleanlinux ]]; then mv "$saved/var-lib-cleanlinux" "$r/var/lib/cleanlinux"; fi
+	rmdir "$saved"
+}
+
+# live_fs TOP LABEL IMAGE: the root partition from the tree TOP, as small as it gets, every file
+# owned by root (in a user namespace, which reads every file whatever its mode)
+live_fs() {
+	local top=$1 label=$2 img=$3 mb n bs count
+	local -a mk fsck resize dump
+	mapfile -t mk < <(live_mkfs)
+	mb=$(du -sm --apparent-size "$top" | cut -f1)
+	rm -f "$img"
+	case $LIVE_FS in
+		btrfs)
+			# plain directories, no subvolumes; single metadata (the medium is read, not written)
+			truncate -s $((mb + mb / 2 + 512))M "$img"
+			unshare -r "${mk[@]}" -f -q -L "$label" -m single -d single --rootdir "$top" \
+				--compress "$LIVE_COMPRESS" --shrink "$img"
+			;;
+		ext4)
+			mapfile -t fsck < <(disk_tool e2fsck)
+			mapfile -t resize < <(disk_tool resize2fs)
+			mapfile -t dump < <(disk_tool dumpe2fs)
+			n=$(find "$top" | wc -l)
+			truncate -s $((mb + mb / 4 + 256))M "$img"
+			# no journal and no reserved blocks: nothing writes to it
+			unshare -r "${mk[@]}" -q -F -L "$label" -O ^has_journal -m 0 -N $((n + n / 10 + 4096)) -d "$top" "$img"
+			"${fsck[@]}" -fy "$img" >/dev/null
+			"${resize[@]}" -M "$img"
+			bs=$("${dump[@]}" -h "$img" 2>/dev/null | awk -F: '$1 == "Block size" { print $2 + 0 }')
+			count=$("${dump[@]}" -h "$img" 2>/dev/null | awk -F: '$1 == "Block count" { print $2 + 0 }')
+			truncate -s $((bs * count)) "$img"
+			;;
+	esac
+}
+
+live_image() {
+	local d=$WORK/live t=$WORK/live/top r=$WORK/live/top/@ date label img entry e serial efi kib s spin=''
+	local default=1-live.conf suffix='' sums
+	local -a mkvfat names=()
 	date=$(date -u +%Y%m%d)
-	label=${ISO_LABEL:-CLEANLINUX_$date}
-	iso=$WORK/cleanlinux-$ARCH-$PROFILE$(spin_suffix "$r")-$date.iso
+	label=${LIVE_LABEL:-CL_LIVE_$date}
+	for s in "$t"/spins/*/; do
+		s=${s%/} && names+=("${s##*/}")
+	done
+	if ((${#names[@]})); then suffix=-$(IFS=+ && echo "${names[*]}"); fi
+	img=$WORK/cleanlinux-$ARCH-${PROFILE##*/}$suffix-$date.img
 	case $ARCH in
 		x86_64) serial='console=tty0 console=ttyS0,115200' efi=BOOTX64.EFI ;;
 		aarch64) serial='console=tty0 console=ttyAMA0,115200' efi=BOOTAA64.EFI ;;
 	esac
 	mapfile -t mkvfat < <(disk_tool mkfs.vfat)
-	((${#mkvfat[@]})) || die "mkfs.vfat (dosfstools) is needed for the ISO"
+	((${#mkvfat[@]})) || die "mkfs.vfat (dosfstools) is needed for the live image"
 
-	# the boot partition: systemd-boot, the kernel and an initramfs that holds just the init of
-	# cleanlinux-boot, which finds the medium by its label and mounts the image (root=live:)
-	mkdir -p "$r/etc/cleanlinux/initramfs.d" "$r/etc/kernel"
-	printf '%s\n' '# the live system (bootstrap.sh iso): the init that finds the medium and mounts its image' \
-		'enable=yes' >"$r/etc/cleanlinux/initramfs.d/10-live.conf"
-	printf '%s\n' "root=live:LABEL=$label" >"$r/etc/kernel/cmdline"
-	rm -rf "$d/esp" && mkdir -p "$d/esp"
-	run_target "$r/usr/bin/cleanlinux-boot" --root "$r" kernel sync --esp "$d/esp"
-	entry=$(find "$d/esp/loader/entries" -name 'cleanlinux-*.conf' | sort -V | tail -n 1)
+	# the boot partition: the menu, the first spin by default (a desktop), then the console
+	live_esp "$r" "$label" "$d/esp"
+	e=$d/esp/loader/entries
+	entry=$(find "$e" -name 'cleanlinux-*.conf' | sort -V | tail -n 1)
 	[[ -n $entry ]] || die "kernel sync wrote no boot entry"
 	[[ -f $d/esp/EFI/BOOT/$efi ]] || die "kernel sync put no EFI/BOOT/$efi into the boot partition"
 	grep -q '^initrd ' "$entry" || die "the boot entry has no initramfs: $entry"
-	e=$d/esp/loader/entries
-	iso_entry "$entry" 1 "CleanLinux live" quiet >"$e/1-live.conf"
-	iso_entry "$entry" 2 "CleanLinux live (copy to RAM)" "quiet cleanlinux.live.toram" >"$e/2-toram.conf"
-	iso_entry "$entry" 3 "CleanLinux live (safe graphics)" nomodeset >"$e/3-safe-graphics.conf"
-	iso_entry "$entry" 4 "CleanLinux live (serial console)" "$serial" >"$e/4-serial.conf"
+	for s in "${names[@]}"; do
+		live_entry "$entry" "0-$s" "CleanLinux live ($s)" "quiet cleanlinux.live.spin=$s" >"$e/0-$s.conf"
+		if [[ -z $spin ]]; then spin="cleanlinux.live.spin=$s" default=0-$s.conf; fi
+	done
+	live_entry "$entry" 1 "CleanLinux live${spin:+ (console)}" quiet >"$e/1-live.conf"
+	live_entry "$entry" 2 "CleanLinux live (copy to RAM)" "quiet cleanlinux.live.toram${spin:+ $spin}" >"$e/2-toram.conf"
+	live_entry "$entry" 3 "CleanLinux live (safe graphics)" "nomodeset${spin:+ $spin}" >"$e/3-safe-graphics.conf"
+	if [[ -d $t/nonfree ]]; then
+		live_entry "$entry" 4 "CleanLinux live (no proprietary drivers)" "quiet cleanlinux.live.nonfree=0${spin:+ $spin}" \
+			>"$e/4-free-drivers.conf"
+	fi
+	live_entry "$entry" 5 "CleanLinux live (serial console)" "$serial" >"$e/5-serial.conf"
 	rm "$entry"
-	printf '%s\n' '# the boot menu of the CleanLinux ISO (systemd-boot; e edits an entry)' 'default 1-live.conf' \
+	printf '%s\n' '# the boot menu of the CleanLinux live image (systemd-boot; e edits an entry)' "default $default" \
 		'timeout 5' 'editor yes' 'console-mode keep' >"$d/esp/loader/loader.conf"
 	head -n 50 "$e"/*.conf
 	kib=$(du -sk --apparent-size "$d/esp" | cut -f1)
 	rm -f "$d/esp.img"
 	"${mkvfat[@]}" -C -n CL_EFI "$d/esp.img" $((kib + kib / 8 + 4096))
 	MTOOLS_SKIP_CHECK=1 mcopy -s -m -Q -i "$d/esp.img" "$d/esp"/* ::/
-
-	# the system: the root as a squashfs image, every file owned by root (in a user namespace,
-	# which reads every file whatever its mode)
-	rm -rf "$d/iso" && mkdir -p "$d/iso/cleanlinux/live"
-	read -ra comp <<<"$ISO_COMPRESSION"
-	unshare -r mksquashfs "$r" "$d/iso/cleanlinux/live/rootfs.sfs" "${comp[@]}" -noappend -all-root -no-xattrs \
-		-no-progress
-	cat >"$d/iso/README.txt" <<-EOF
+	cat >"$t/README.txt" <<-EOF
 		CleanLinux live $date ($ARCH, profile $PROFILE): https://github.com/vovawees/CleanLinux
 
-		Write the whole image onto a USB stick, not its files: dd if=${iso##*/} of=/dev/sdX bs=4M,
-		Rufus in "DD image" mode, or balenaEtcher. Start the PC from the stick (UEFI, Secure Boot
-		off): the installer (cleanlinux-setup) opens by itself. docs/INSTALL.md tells it all.
+		@/ is the system, nonfree/ the proprietary drivers, spins/NAME/ what a spin adds, live/ what
+		makes it live: the boot loader's menu picks the layers, the installer copies them to a disk.
 	EOF
 
-	# GPT for a stick (the ISO from 64 KiB on, the boot partition appended) and El Torito for
-	# a DVD, both pointing at the same boot partition
-	rm -f "$iso" "$iso.sha256"
-	xorriso -as mkisofs -iso-level 3 -full-iso9660-filenames -joliet -joliet-long -rational-rock \
-		-volid "$label" -appid "CleanLinux live $date" -publisher "CleanLinux https://github.com/vovawees/CleanLinux" \
-		-preparer "CleanLinux bootstrap.sh iso" -partition_offset 16 \
-		-append_partition 2 C12A7328-F81F-11D2-BA4B-00A0C93EC93B "$d/esp.img" -appended_part_as_gpt \
-		-e --interval:appended_partition_2:all:: -no-emul-boot \
-		-output "$iso" "$d/iso"
-	(cd "${iso%/*}" && sha256sum "${iso##*/}" >"${iso##*/}.sha256")
+	# the root partition, then GPT: the boot partition from 1 MiB, the root after it, 1 MiB for
+	# the backup table at the end
+	live_fs "$t" "$label" "$d/root.img"
+	local esp_start=2048 esp_mib root_mib esp_sectors root_start root_sectors
+	esp_mib=$((($(stat -c %s "$d/esp.img") + 1048575) / 1048576))
+	root_mib=$((($(stat -c %s "$d/root.img") + 1048575) / 1048576))
+	esp_sectors=$((esp_mib * 2048)) root_sectors=$((root_mib * 2048))
+	root_start=$((esp_start + esp_sectors))
+	rm -f "$img" "$img.sha256"
+	truncate -s $(((root_start + root_sectors + 2048) * 512)) "$img"
+	printf '%s\n' 'label: gpt' \
+		"start=$esp_start, size=$esp_sectors, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=\"EFI system partition\"" \
+		"start=$root_start, size=$root_sectors, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name=\"CleanLinux live\"" |
+		sfdisk -q "$img"
+	sfdisk -d "$img"
+	dd if="$d/esp.img" of="$img" bs=1M seek=$((esp_start * 512)) oflag=seek_bytes conv=notrunc,sparse status=none
+	dd if="$d/root.img" of="$img" bs=1M seek=$((root_start * 512)) oflag=seek_bytes conv=notrunc,sparse status=none
+	(cd "${img%/*}" && sha256sum "${img##*/}" >"${img##*/}.sha256")
+	sums=$(du -sh "$t"/* | tr '\t' ' ' | tr '\n' ',')
+	info "the medium: ${sums%,}; the root partition $root_mib MiB ($LIVE_FS)"
 	chmod -R u+w "$d" && rm -rf "$d"
-	ls -lh "$iso"
-	cat "$iso.sha256"
+	ls -lhs "$img"
+	cat "$img.sha256"
 }
 
-stage_iso() {
-	info "== stage iso"
+stage_live() {
+	info "== stage live"
 	[[ -f $STAMPS/80-base ]] || die "run the base stage first"
+	live_defaults
 	# burn builds from source on the device: a system with no compiler could neither update nor
 	# take a spin. perl and python of base-devel do not cross-compile: the native stage builds them
-	if [[ $ISO_BASE_DEVEL == 1 && ! -d $ROOTFS/var/lib/burn/installed/base-devel ]]; then
-		info "the ISO carries base-devel (ISO_BASE_DEVEL=1): the native stage first"
+	if [[ $LIVE_BASE_DEVEL == 1 && ! -d $ROOTFS/var/lib/burn/installed/base-devel ]]; then
+		info "the live system carries base-devel (LIVE_BASE_DEVEL=1): the native stage first"
 		stage_native
 	fi
-	rm -f "$STAMPS/94-disk-native" "$STAMPS/95-iso-check" "$STAMPS/96-iso-root" "$STAMPS/97-iso-image"
+	rm -f "$STAMPS/94-disk-native" "$STAMPS/95-live-check" "$STAMPS/96-live-root" "$STAMPS/97-live-image"
 	step 94-disk-native disk_native
-	step 95-iso-check iso_check
-	step 96-iso-root iso_root
-	step 97-iso-image iso_image
+	step 95-live-check live_check
+	step 96-live-root live_root
+	step 97-live-image live_image
 }

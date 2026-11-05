@@ -12,11 +12,14 @@
 #              --spin adds a spin (git URL or directory, docs/SPINS.md) on top of the base;
 #              DISK_PACKAGE_FEATURES= lines for /etc/burn/package.features of the image
 #              ('mesa -video_cards_intel': no LLVM for an image that does not need Intel GPUs)
-#   iso        the live ISO for a USB stick or a DVD (UEFI): systemd-boot, the kernel, a squashfs of
-#              the system with firmware for PCs and its package cache; root logs in by itself and
-#              the installer with screens (cleanlinux-setup) starts; docs/INSTALL.md, tests/iso.py
-#              (ISO_FIRMWARE=all: the whole of linux-firmware; --spin as for disk); the system has
-#              base-devel: the native stage runs first when the rootfs lacks it (ISO_BASE_DEVEL=0: not)
+#   live       the live image for a USB stick or an SD card (UEFI; docs/INSTALL.md): GPT with
+#              systemd-boot, the kernel and a root partition (btrfs, zstd) of plain trees: the
+#              system @/, the proprietary drivers nonfree/, a layer per --spin and the live layer
+#              (root logs in by itself, the installer with screens starts: cleanlinux-setup);
+#              tests/live.py installs from it in QEMU. LIVE_FIRMWARE=all: the whole of
+#              linux-firmware; LIVE_NONFREE=: no proprietary drivers; LIVE_FS=ext4. The system has
+#              base-devel: the native stage runs first when the rootfs lacks it (LIVE_BASE_DEVEL=0:
+#              not). "iso" is the old name of this stage: there is no ISO any more
 #
 # The rootfs doubles as the toolchain sysroot, so every package is built against the exact
 # glibc it will run with. Nothing from the host ends up in the image.
@@ -46,7 +49,7 @@ while (($#)); do
 			awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"
 			exit 0
 			;;
-		toolchain | base | native | image | disk | iso | all) STAGES+=("$1") && shift ;;
+		toolchain | base | native | image | disk | live | iso | all) STAGES+=("$1") && shift ;;
 		*) die "unknown argument: $1" ;;
 	esac
 done
@@ -100,14 +103,18 @@ for stage in "${STAGES[@]}"; do
 		native) stage_native ;;
 		image) stage_image ;;
 		disk) stage_disk ;;
-		iso) stage_iso ;;
+		live) stage_live ;;
+		iso)
+			warn "the ISO is gone: the live image is a disk image now (bootstrap.sh live)"
+			stage_live
+			;;
 		all)
 			stage_toolchain
 			stage_base
 			stage_native
 			stage_image
 			stage_disk
-			stage_iso
+			stage_live
 			;;
 	esac
 done

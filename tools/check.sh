@@ -6,11 +6,10 @@
 #                                                source tree or linux-X.tar.xz (minutes per profile)
 #   tools/check.sh [--recipes DIR] --full [ARCH] the same, then the whole bootstrap of ARCH (x86_64 by
 #                                                default; hours of CPU), the kernel options against the
-#                                                kernel it fetched, and the boot and install tests of its
-#                                                disk image in QEMU (tests/boot.py, tests/install.py,
-#                                                also with --encrypt), and the install from its ISO
-#                                                through the installer's screens (tests/iso.py: as a
-#                                                USB stick, then as a DVD with --encrypt)
+#                                                kernel it fetched, the boot and install tests of its
+#                                                disk image in QEMU (tests/boot.py, tests/install.py),
+#                                                and the install from its live USB image through the
+#                                                installer's screens (tests/live.py)
 #   tools/check.sh --quick                       shellcheck only (tools/hooks/pre-push)
 # The recipes default to ../CleanLinux-Recipes/packages.
 set -euo pipefail
@@ -33,7 +32,7 @@ step() { printf '\n\033[1;36m==>\033[0m %s\n' "$*"; }
 
 step shellcheck
 shellcheck -x tests/*.sh bootstrap/*.sh tools/*.sh tools/hooks/pre-push profiles/*.profile profiles/devices/*.profile
-python3 -m py_compile tools/*.py tests/*.py
+python3 -m py_compile tools/*.py tests/*.py bootstrap/*.py
 [[ $MODE == quick ]] && exit 0
 
 if [[ ! -d $RECIPES ]]; then
@@ -41,6 +40,8 @@ if [[ ! -d $RECIPES ]]; then
 	exit 1
 fi
 RECIPES=$(readlink -f "$RECIPES")
+step "live layers (bootstrap/layer.py)"
+tests/layer.sh
 step "rolling release+++ test"
 tests/rolling.sh
 step "smoke test (real recipes)"
@@ -51,7 +52,7 @@ if [[ -n $KERNEL ]]; then
 fi
 [[ $MODE == full ]] || exit 0
 
-step "bootstrap $ARCH: toolchain, base, native, image, disk, iso"
+step "bootstrap $ARCH: toolchain, base, native, image, disk, live"
 bootstrap/bootstrap.sh --arch "$ARCH" --recipes "$RECIPES" all
 if [[ -z $KERNEL ]]; then
 	tarball=$(find build/cache/sources -maxdepth 1 -name 'linux-*.tar.xz' | sort -V | tail -1)
@@ -63,11 +64,7 @@ step "boot test: $img"
 python3 tests/boot.py "$img" --arch "$ARCH" --log "build/$ARCH/logs/boot.log"
 step "install test"
 python3 tests/install.py "$img" --arch "$ARCH"
-step "install test, the root in LUKS2"
-python3 tests/install.py "$img" --arch "$ARCH" --encrypt
-iso=$(find "build/$ARCH" -maxdepth 1 -name "cleanlinux-$ARCH-generic-$ARCH-*.iso" | sort | tail -1)
-[[ -n $iso ]] || { echo "no ISO in build/$ARCH" >&2 && exit 1; }
-step "ISO test: $iso as a USB stick"
-python3 tests/iso.py "$iso" --arch "$ARCH" -q
-step "ISO test: $iso as a DVD, the root in LUKS2"
-python3 tests/iso.py "$iso" --arch "$ARCH" --cdrom --encrypt -q
+live=$(find "build/$ARCH" -maxdepth 1 -name "cleanlinux-$ARCH-generic-$ARCH*-[0-9]*.img" | sort | tail -1)
+[[ -n $live ]] || { echo "no live image in build/$ARCH" >&2 && exit 1; }
+step "live test: $live as a USB stick, the installer's screens"
+python3 tests/live.py "$live" --arch "$ARCH" -q

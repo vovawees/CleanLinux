@@ -59,14 +59,14 @@ configure() (
 	FILES=$RECIPES/linux WORK=$T/work/$p CROSS=0 CHOST=$chost
 	mkdir -p "$WORK"
 	# the recipe calls these (SC2329)
-	# shellcheck disable=SC2329
+	# shellcheck disable=SC2329,SC2317
 	die() { fail "$p: $*"; }
-	# shellcheck disable=SC2329
+	# shellcheck disable=SC2329,SC2317
 	use() { [[ $FEATURES == *" $1 "* ]]; }
 	# shellcheck source=/dev/null
 	. "$RECIPES/linux/recipe"
 	# configuring needs no cross compiler; the host's answers the compiler tests of Kconfig
-	# shellcheck disable=SC2329
+	# shellcheck disable=SC2329,SC2317
 	_kmake() { make -s ARCH="$KARCH" HOSTCC=gcc "$@"; }
 	cd "$SRC"
 	do_configure >"$WORK/configure.log" 2>&1 || fail "$p: do_configure failed:"$'\n'"$(tail -20 "$WORK/configure.log")"

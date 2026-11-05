@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
-"""Install CleanLinux from its live ISO with the installer's screens, in QEMU, then boot the new disk.
+"""Install CleanLinux from its live USB image with the installer's screens, in QEMU, then boot the new disk.
 
-usage: tests/iso.py ISO [--arch x86_64|aarch64] [--cdrom] [--encrypt] [--size 8G] [--memory MIB]
-                    [--timeout SECONDS] [--keep DIR] [-q]
+usage: tests/live.py IMAGE [--arch x86_64|aarch64] [--size 8G] [--memory MIB] [--timeout SECONDS]
+                     [--keep DIR] [-q]
 
-1. The ISO (bootstrap.sh iso) boots as a USB stick (--cdrom: as a CD) of a UEFI machine that has
-   an empty disk. SMBIOS passes the serial console to the kernel (io.systemd.boot.kernel-cmdline-
-   extra, which systemd-boot adds to its entries), so root logs in by itself on the serial line
-   and the installer with screens (cleanlinux-setup) opens there. A small terminal emulator keeps
-   its screen, and the test goes through it as a person would: Russian, the keyboard layout, the
-   time zone found by searching (Europe/Moscow), the disk (the stick itself cannot be chosen), no
-   encryption (--encrypt: LUKS2 with a passphrase), the computer's name, a user, a password of
-   its own for root, the summary, "Erase and install". It waits for the installation, leaves to
-   the console, checks the live system (overlay root, the medium, services, the package cache)
-   and powers off.
+1. The live image (bootstrap.sh live: a GPT disk with an ESP and one btrfs or ext4 partition)
+   boots as a USB stick of a UEFI machine (xHCI, usb-storage) that has an empty disk. SMBIOS
+   passes the serial console to the kernel (io.systemd.boot.kernel-cmdline-extra, which
+   systemd-boot adds to its entries), so root logs in by itself on the serial line and the
+   installer with screens (cleanlinux-setup) opens there. A small terminal emulator keeps its
+   screen, and the test goes through it as a person would: Russian, the keyboard layout, the time
+   zone found by searching (Europe/Moscow), the disk (the stick itself cannot be chosen), the
+   computer's name and a user (root gets the same password), the system (the desktop and the
+   proprietary drivers as offered), the summary, "Erase and install". It waits for the
+   installation, leaves to the console, checks the live system (an overlay root over the layers
+   of the medium, no squashfs, no package cache, services) and powers off.
 2. Only the new disk boots, with the same UEFI variables. The test logs in as the user, then as
-   root, and checks the choices (host name, time zone, keymap and font, groups, passwords, LUKS),
-   the btrfs layout, the boot entry, the services, and that the new system has the packages of
-   the live system and none of its live settings (autologin, the installer at login).
+   root with the same password, and checks the choices (host name, time zone, keymap and font,
+   groups, the proprietary drivers on: ALLOW_NONFREE=1), the btrfs layout, the boot entry, the services, and that the
+   new system has the packages of the live system and none of its live settings (autologin, the
+   installer at login, root=live).
 
-The ISO is not modified. Logs: ISO.live.log and ISO.installed.log (the serial consoles).
+The image is not modified (QEMU snapshot mode). Logs: IMAGE.live.log and IMAGE.installed.log
+(the serial consoles).
 """
 import argparse
 import codecs
@@ -33,22 +36,26 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from boot import PANIC, find_firmware, nic_args, service_failures  # noqa: E402
+from boot import PANIC, find_firmware, nic_args, qemu_machine, service_failures  # noqa: E402
 from install import Run  # noqa: E402
 
-ROOT_PW, USER, USER_PW, HOST, LUKS_PW = "root-pw-1", "anna", "anna-pw-2", "installed", "luks-pw-3x"
+USER, USER_PW, HOST = "anna", "anna-pw-2", "installed"
 SERIAL = {"x86_64": "console=tty0 console=ttyS0,115200", "aarch64": "console=tty0 console=ttyAMA0,115200"}
 ENTER, TAB, ESC, DOWN, RIGHT, HOME, CTRL_U = "\r", "\t", "\x1b", "\x1b[B", "\x1b[C", "\x1b[H", "\x15"
 
 LIVE_CHECKS = r"""F=FAIL D=DONE; c() { "$@" >/dev/null 2>&1 || echo "CHECK-$F: $*"; };
 cat /proc/cmdline; findmnt -rno TARGET,SOURCE,FSTYPE; c sh -c 'findmnt -no FSTYPE / | grep -qx overlay';
-c sh -c 'findmnt -no FSTYPE /run/cleanlinux/live/medium | grep -qx iso9660';
-c sh -c 'findmnt -no FSTYPE /run/cleanlinux/live/rootfs | grep -qx squashfs';
+c sh -c 'findmnt -no FSTYPE /run/cleanlinux/live/medium | grep -Eqx "btrfs|ext4"';
+c test -d /run/cleanlinux/live/medium/@/usr; c test -d /run/cleanlinux/live/medium/live;
+c sh -c '! grep -qw squashfs /proc/filesystems';
 c grep -qx cleanlinux-live /proc/sys/kernel/hostname; c test -s /etc/machine-id; c test -s /tmp/cleanlinux-install.log;
 c grep -q '^FIRMWARE=' /etc/burn/burn.conf; c sh -c 'ls /usr/lib/firmware | grep -q .';
 for s in early-udevd early-fstab early-tmpfiles early-clock system login dhcpcd; do c dinitctl is-started $s; done;
 dinitctl list; c burn doctor; burn list | wc -l | sed 's/^/LIVE-PKGS=/'; c sh -c 'locale -a | grep -qx C.utf8';
-ls /var/cache/burn/packages | wc -l | sed 's/^/LIVE-CACHE=/'; df -h / /run/cleanlinux/live/rw; free -m;
+c sh -c '! ls /var/cache/burn/packages 2>/dev/null | grep -q "[.]pkg[.]tar"';
+if [ -d /run/cleanlinux/live/medium/nonfree ]; then echo LIVE-NONFREE=yes; else echo LIVE-NONFREE=no; fi;
+ls /run/cleanlinux/live/medium/spins 2>/dev/null | tr '\n' ' ' | sed 's/^/LIVE-SPINS=/'; echo;
+df -h / /run/cleanlinux/live/medium /run/cleanlinux/live/rw; free -m;
 echo "CHECKS-$D"
 """
 
@@ -62,7 +69,8 @@ c grep -qx 'KEYMAP=ruwin_alt_sh-UTF-8' /etc/vconsole.conf; c grep -q '^FONT=.' /
 c sh -c 'id -nG USER | grep -qw wheel'; c test -d /home/USER; c grep -q '^root:[$]y[$]' /etc/shadow;
 c grep -q '^FIRMWARE=' /etc/burn/burn.conf; c sh -c 'ls /usr/lib/firmware | grep -q .';
 c sh -c '! grep -rqs autologin /etc/dinit.d'; c sh -c '! grep -qs cleanlinux-setup /root/.bash_profile';
-c sh -c '! grep -qs root=live /etc/kernel/cmdline'; LUKSCHECKS
+c sh -c '! grep -qs root=live /etc/kernel/cmdline'; c sh -c '! grep -rqs root=live /boot/loader/entries';
+c grep -q '^ALLOW_NONFREE=1' /etc/burn/burn.conf;
 for s in early-udevd early-root-rw early-fstab early-seed early-tmpfiles early-clock early-vconsole system login dhcpcd; do
 c dinitctl is-started $s; done; c burn doctor; burn list | wc -l | sed 's/^/INSTALLED-PKGS=/'; c nano --version;
 c sh -c 'locale -a | grep -qx C.utf8'; c sh -c '! LC_ALL=C.UTF-8 sh -c : 2>&1 | grep -q .';
@@ -70,13 +78,10 @@ if [ -d /var/lib/burn/installed/base-devel ]; then echo BASE-DEVEL=yes; c make -
 c sh -c 'printf "int main(void) { return 0; }\n" | gcc -O2 -x c -o /tmp/t - && /tmp/t'; c cmake --version; c meson --version;
 else echo BASE-DEVEL=no; fi; echo "CHECKS-$D"
 """
-LUKS_CHECKS = r"""c cryptsetup isLuks --type luks2 /dev/vda2; c sh -c 'grep -q "^initrd " /boot/loader/entries/*.conf';
-c sh -c 'findmnt -no SOURCE / | grep -q "^/dev/mapper/luks-"';"""
 
 
-def installed_checks(encrypt):
+def installed_checks():
     text = INSTALLED_CHECKS.replace("HOST", HOST).replace("USER", USER)
-    text = text.replace("LUKSCHECKS", LUKS_CHECKS if encrypt else "")
     return " ".join(text.split("\n")).strip()
 
 
@@ -226,10 +231,8 @@ class Failed(Exception):
     pass
 
 
-def qemu(arch, code, vars_copy, iso, target, cdrom, memory, extra_cmdline):
-    kvm = os.access("/dev/kvm", os.R_OK | os.W_OK) and arch == os.uname().machine
-    cmd = ["qemu-system-x86_64", "-machine", "q35"] if arch == "x86_64" else ["qemu-system-aarch64", "-machine", "virt"]
-    cmd += ["-accel", "kvm", "-cpu", "host"] if kvm else ["-accel", "tcg", "-cpu", "max"]
+def qemu(arch, code, vars_copy, stick, target, memory, extra_cmdline):
+    cmd, kvm = qemu_machine(arch)
     cmd += [
         "-m", str(memory), "-smp", "2", "-display", "none", "-monitor", "none", "-serial", "stdio", "-no-reboot",
         "-drive", f"if=pflash,format=raw,unit=0,readonly=on,file={code}",
@@ -241,12 +244,9 @@ def qemu(arch, code, vars_copy, iso, target, cdrom, memory, extra_cmdline):
         # SMBIOS type 11 (OEM strings): systemd-boot adds it to the command line of its entries
         value = "io.systemd.boot.kernel-cmdline-extra=" + extra_cmdline
         cmd += ["-smbios", "type=11,value=" + value.replace(",", ",,")]
-    if iso and cdrom:
-        cmd += ["-drive", f"file={iso},format=raw,if=none,id=cd,media=cdrom,readonly=on"]
-        cmd += ["-device", "virtio-scsi-pci,id=scsi", "-device", "scsi-cd,drive=cd,bus=scsi.0"]
-    elif iso:
+    if stick:
         # the stick: USB mass storage behind an xHCI controller, as on a PC
-        cmd += ["-device", "qemu-xhci,id=xhci", "-drive", f"file={iso},format=raw,if=none,id=stick,snapshot=on"]
+        cmd += ["-device", "qemu-xhci,id=xhci", "-drive", f"file={stick},format=raw,if=none,id=stick,snapshot=on"]
         cmd += ["-device", "usb-storage,bus=xhci.0,drive=stick,removable=on"]
     cmd += ["-drive", f"file={target},format=raw,if=virtio"]
     return cmd, kvm
@@ -258,13 +258,11 @@ def need(screen, what):
     return screen
 
 
-def go_through_screens(live, encrypt, cdrom, timeout):
+def go_through_screens(live, timeout):
     """the screens of cleanlinux-setup, in Russian; returns the summary screen"""
     s = need(live.wait_for("Language . Язык", "English", timeout=timeout), "the installer did not open on the serial console")
     print(f"\n--- the installer is open:\n{s}", flush=True)
     live.keys(DOWN, ENTER)
-    need(live.wait_for("Добро пожаловать", "Далее"), "no welcome screen in Russian")
-    live.keys(ENTER)
     need(live.wait_for("Раскладка клавиатуры", "> Русская"), "no keyboard layout screen with Russian chosen")
     live.keys(ENTER)
     need(live.wait_for("Часовой пояс", "Европа"), "no time zone screen")
@@ -275,34 +273,22 @@ def go_through_screens(live, encrypt, cdrom, timeout):
     live.type("mosc")
     need(live.wait_for("Поиск: mosc"), "the search for a city does not show")
     live.keys(ENTER)
-    s = need(live.wait_for("Диск", "/dev/vda"), "no disk screen with the empty disk (/dev/vda)")
+    s = need(live.wait_for("Диск", "/dev/vda", "/dev/sda"), "no disk screen with the stick and the empty disk")
     print(f"\n--- disks:\n{s}", flush=True)
-    if not cdrom:
-        # the stick is listed first and cannot be chosen: the line under the list says why
-        need(live.wait_for("/dev/sda"), "the stick is not on the disk screen")
-        live.keys(HOME)
-        need(live.wait_for("> /dev/sda", "носитель установки"), "the stick is not the installation medium:\n"
-             + live.screen.text())
-        # the empty disk (the list is in a box: "| > /dev/vda ...")
-        for _ in range(4):
-            live.keys(DOWN)
-            if live.wait_for("> /dev/vda", timeout=5):
-                break
-        else:
-            raise Failed("cannot select /dev/vda:\n" + live.screen.text())
+    # the stick cannot be chosen: the line under the list says why
+    live.keys(HOME)
+    need(live.wait_for("> /dev/sda", "носитель установки"), "the stick is not the installation medium:\n"
+         + live.screen.text())
+    # the empty disk (the list is in a box: "| > /dev/vda ...")
+    for _ in range(4):
+        live.keys(DOWN)
+        if live.wait_for("> /dev/vda", timeout=5):
+            break
+    else:
+        raise Failed("cannot select /dev/vda:\n" + live.screen.text())
     need(live.wait_for("> /dev/vda", "пустой"), "/dev/vda is not chosen, or not shown as empty")
     live.keys(ENTER)
-    need(live.wait_for("Шифрование", "Зашифровать диск"), "no encryption screen")
-    if encrypt:
-        live.keys(DOWN, ENTER)
-        need(live.wait_for("Пароль шифрования", "Повтор"), "no passphrase fields")
-        live.type(LUKS_PW)
-        live.keys(TAB)
-        live.type(LUKS_PW)
-        live.keys(ENTER)
-    else:
-        live.keys(ENTER)
-    need(live.wait_for("Компьютер и пользователь"), "no user screen")
+    need(live.wait_for("Компьютер и пользователь", "получит тот же пароль"), "no user screen")
     live.keys(CTRL_U)
     live.type(HOST)
     live.keys(TAB)
@@ -312,20 +298,12 @@ def go_through_screens(live, encrypt, cdrom, timeout):
     live.keys(TAB)
     live.type(USER_PW)
     live.keys(ENTER)
-    need(live.wait_for("Администратор (root)", f"Тот же пароль, что у {USER}"), "no root password screen")
-    live.keys(DOWN, ENTER)
-    need(live.wait_for("Пароль root"), "no root password fields")
-    live.type(ROOT_PW)
-    live.keys(TAB)
-    live.type(ROOT_PW)
-    live.keys(ENTER)
-    s = need(live.wait_for("Всё готово к установке", "Оборудование", any_of=True), "no summary")
-    if "Всё готово к установке" not in s:
-        print(f"\n--- hardware profile:\n{s}", flush=True)
-        live.keys(DOWN, ENTER)  # keep the profile of the live system
-        s = need(live.wait_for("Всё готово к установке"), "no summary after the hardware screen")
+    s = need(live.wait_for("Система", "Рабочий стол", "Проприетарные драйверы"), "no system screen")
+    print(f"\n--- system:\n{s}", flush=True)
+    live.keys(ENTER)  # the desktop and the drivers as offered
+    s = need(live.wait_for("Всё готово к установке"), "no summary")
     print(f"\n--- summary:\n{s}", flush=True)
-    for want in ("/dev/vda", "Europe/Moscow", HOST, USER, "LUKS2" if encrypt else "нет"):
+    for want in ("/dev/vda", "Europe/Moscow", HOST, USER):
         if want not in s:
             raise Failed(f"the summary lacks {want!r}:\n{s}")
     live.keys(ENTER)
@@ -336,10 +314,8 @@ def go_through_screens(live, encrypt, cdrom, timeout):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("iso")
+    ap.add_argument("image")
     ap.add_argument("--arch", default=os.uname().machine, choices=sorted(SERIAL))
-    ap.add_argument("--cdrom", action="store_true", help="the ISO as a CD, not as a USB stick")
-    ap.add_argument("--encrypt", action="store_true", help="the root of the new disk in LUKS2")
     ap.add_argument("--size", default="8G", help="size of the empty disk")
     ap.add_argument("--memory", type=int, default=2048, help="MiB")
     ap.add_argument("--timeout", type=int, default=0, help="seconds until the installer opens (default: 300 KVM, 1800 TCG)")
@@ -348,22 +324,22 @@ def main():
     args = ap.parse_args()
 
     code, vars_ = find_firmware(args.arch)
-    tmp = tempfile.mkdtemp(prefix="cleanlinux-iso.")
+    tmp = tempfile.mkdtemp(prefix="cleanlinux-live.")
     vars_copy, target = os.path.join(tmp, "vars.fd"), os.path.join(tmp, "target.img")
     shutil.copyfile(vars_, vars_copy)
     subprocess.run(["truncate", "-s", args.size, target], check=True)
-    iso = os.path.abspath(args.iso)
+    image = os.path.abspath(args.image)
     failures, t0 = [], time.monotonic()
     try:
         # 1. the live system, its installer
-        cmd, kvm = qemu(args.arch, code, vars_copy, iso, target, args.cdrom, args.memory, SERIAL[args.arch])
+        cmd, kvm = qemu(args.arch, code, vars_copy, image, target, args.memory, SERIAL[args.arch])
         timeout = args.timeout or (300 if kvm else 1800)
-        live = Live(cmd, iso + ".live.log", not args.quiet)
+        live = Live(cmd, image + ".live.log", not args.quiet)
         try:
-            go_through_screens(live, args.encrypt, args.cdrom, timeout)
+            go_through_screens(live, timeout)
             # the progress shows one step at a time (and a fast machine may be done already)
-            need(live.wait_for("Разметка диска", "Копирование пакетов", "CleanLinux установлен", "Установка не удалась",
-                               timeout=120, any_of=True), "the installation does not start")
+            need(live.wait_for("Разметка диска", "Копирование системы", "Копирование пакетов", "CleanLinux установлен",
+                               "Установка не удалась", timeout=120, any_of=True), "the installation does not start")
             print(f"\n--- installing after {time.monotonic() - t0:.0f}s", flush=True)
             deadline = time.monotonic() + 5400
             while True:
@@ -389,6 +365,10 @@ def main():
             failures += ["live system: " + line.strip() for line in out.splitlines() if "CHECK-FAIL" in line]
             m = re.search(r"LIVE-PKGS=(\d+)", out)
             live_pkgs = m.group(1) if m else None
+            m = re.search(r"LIVE-NONFREE=(yes|no)", out)
+            nonfree = m.group(1) if m else "no"
+            m = re.search(r"LIVE-SPINS=([^\r\n]*)", out)
+            print(f"\n--- live layers: nonfree {nonfree}, spins: {(m.group(1).strip() if m else '') or '-'}", flush=True)
             live.send("poweroff")
             try:
                 live.proc.wait(300)
@@ -402,23 +382,20 @@ def main():
             live.close()
 
         # 2. the new disk alone
-        cmd, kvm = qemu(args.arch, code, vars_copy, None, target, False, args.memory, None)
-        run = Run(cmd, iso + ".installed.log", args.quiet)
+        cmd, kvm = qemu(args.arch, code, vars_copy, None, target, args.memory, None)
+        run = Run(cmd, image + ".installed.log", args.quiet)
         try:
-            err = run.unlock(LUKS_PW, timeout) if args.encrypt else None
-            if err:
-                failures.append("installed system: " + err)
-                return report(failures, t0)
             err = run.login(USER, USER_PW, timeout)
             if err:
                 failures.append("installed system: " + err)
                 return report(failures, t0)
             run.con.send("exit")
-            err = run.login("root", ROOT_PW, 120)
+            # root has the user's password
+            err = run.login("root", USER_PW, 120)
             if err:
                 failures.append("installed system: " + err)
                 return report(failures, t0)
-            run.con.send(installed_checks(args.encrypt))
+            run.con.send(installed_checks())
             out = run.con.expect(r"CHECKS-DONE", 600)
             if out is None:
                 failures.append("the checks of the installed system did not finish")
@@ -427,7 +404,7 @@ def main():
             m = re.search(r"INSTALLED-PKGS=(\d+)", out)
             if not m or m.group(1) != live_pkgs:
                 failures.append(f"packages: {m.group(1) if m else '?'} installed, {live_pkgs} on the live system")
-            # base-devel (ISO_BASE_DEVEL=1): the installed system builds; its checks are above
+            # base-devel (LIVE_BASE_DEVEL=1): the installed system builds; its checks are above
             m = re.search(r"BASE-DEVEL=(yes|no)", out)
             print(f"\n--- the installed system {'builds (base-devel)' if m and m.group(1) == 'yes' else 'has no base-devel'}", flush=True)
             err = run.poweroff()
@@ -448,7 +425,7 @@ def report(failures, t0):
     print(f"\n--- {time.monotonic() - t0:.0f}s")
     for f in failures:
         print(f"FAIL: {f}")
-    print("iso test: " + ("FAILED" if failures else "ok"))
+    print("live test: " + ("FAILED" if failures else "ok"))
     return 1 if failures else 0
 
 

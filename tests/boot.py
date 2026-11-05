@@ -9,7 +9,8 @@ The test waits for "login:" on the serial console, logs in as root (a fresh imag
 password), checks the services, mounts, devices and burn, runs the --exec commands, then powers
 off: QEMU has to exit by itself, and a service that fails to start or to stop fails the test.
 The image is not modified (QEMU snapshot mode).
-KVM is used when /dev/kvm is usable, TCG otherwise (slow: minutes).
+KVM is used when /dev/kvm is usable, TCG otherwise (slow: minutes). QEMU=path picks the QEMU binary
+(default: qemu-system-ARCH, or /usr/libexec/qemu-kvm for the host's architecture).
 """
 import argparse
 import os
@@ -31,7 +32,7 @@ FIRMWARE = {
     ],
     "aarch64": [
         ("/usr/share/AAVMF/AAVMF_CODE.fd", "/usr/share/AAVMF/AAVMF_VARS.fd"),  # Debian, Ubuntu
-        ("/usr/share/edk2/aarch64/QEMU_EFI-pflash.raw", "/usr/share/edk2/aarch64/vars-template-pflash.raw"),
+        ("/usr/share/edk2/aarch64/QEMU_EFI-pflash.raw", "/usr/share/edk2/aarch64/vars-template-pflash.raw"),  # Fedora, RHEL
         ("/usr/share/edk2/aarch64/QEMU_CODE.fd", "/usr/share/edk2/aarch64/QEMU_VARS.fd"),  # Arch
     ],
 }
@@ -72,13 +73,29 @@ def nic_args(qemu_bin):
     return ["-netdev", "hubport,id=net0,hubid=0", "-device", "virtio-net-pci,netdev=net0"]
 
 
-def qemu_command(arch, image, code, vars_copy, memory):
+def qemu_binary(arch):
+    """$QEMU, else qemu-system-ARCH, else the qemu-kvm of RHEL and its kin for the host's own
+    architecture (/usr/libexec/qemu-kvm, which also has TCG)"""
+    if os.environ.get("QEMU"):
+        return os.environ["QEMU"]
+    b = shutil.which(f"qemu-system-{arch}")
+    if b:
+        return b
+    if arch == os.uname().machine and os.access("/usr/libexec/qemu-kvm", os.X_OK):
+        return "/usr/libexec/qemu-kvm"
+    sys.exit(f"no qemu-system-{arch} found (install QEMU, or QEMU=/path/to/qemu-system-{arch})")
+
+
+def qemu_machine(arch):
+    """QEMU, the machine and the accelerator: KVM when /dev/kvm is usable, else TCG"""
     kvm = os.access("/dev/kvm", os.R_OK | os.W_OK) and arch == os.uname().machine
-    if arch == "x86_64":
-        cmd = ["qemu-system-x86_64", "-machine", "q35"]
-    else:
-        cmd = ["qemu-system-aarch64", "-machine", "virt"]
+    cmd = [qemu_binary(arch), "-machine", "q35" if arch == "x86_64" else "virt"]
     cmd += ["-accel", "kvm", "-cpu", "host"] if kvm else ["-accel", "tcg", "-cpu", "max"]
+    return cmd, kvm
+
+
+def qemu_command(arch, image, code, vars_copy, memory):
+    cmd, kvm = qemu_machine(arch)
     cmd += [
         "-m", str(memory), "-smp", "2", "-display", "none", "-monitor", "none", "-serial", "stdio",
         "-no-reboot",

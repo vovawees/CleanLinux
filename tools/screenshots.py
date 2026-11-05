@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Screenshots of the installer's screens (cleanlinux-setup) on the console of the live ISO, in QEMU.
+"""Screenshots of the installer's screens (cleanlinux-setup) on the console of the live image, in QEMU.
 
-usage: tools/screenshots.py ISO OUTDIR [--lang ru|en] [--encrypt] [--install] [--size 800x600]
+usage: tools/screenshots.py IMAGE OUTDIR [--lang ru|en] [--install] [--size 800x600]
 
-The ISO (bootstrap.sh iso) boots as the USB stick of a UEFI machine with a screen and an empty
+The live image (bootstrap.sh live) boots as the USB stick of a UEFI machine with a screen and an empty
 disk, with no serial console: the installer opens on tty1, as on a PC. The tool presses the keys
 a person would, through QMP, and saves every screen as it settles: OUTDIR/01-language.png and on
 (QMP screendump, the console as it is drawn, font and all). --install goes on: erases the empty
@@ -22,18 +22,17 @@ import time
 from PIL import Image, ImageChops
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests"))
-from boot import find_firmware, nic_args  # noqa: E402
+from boot import find_firmware, nic_args, qemu_machine  # noqa: E402
 
-USER, USER_PW, LUKS_PW = "anna", "anna-pw-2", "luks-pw-3x"
+USER, USER_PW = "anna", "anna-pw-2"
 # the title bar of the screens: bold white on blue (the console's blue: 0x0000aa)
 BLUE = (0, 0, 170)
 
 
 class Machine:
-    def __init__(self, iso, code, vars_copy, disk, sock, memory, log, res):
-        kvm = os.access("/dev/kvm", os.R_OK | os.W_OK)
-        cmd = ["qemu-system-x86_64", "-machine", "q35", "-m", str(memory), "-smp", "2"]
-        cmd += ["-accel", "kvm", "-cpu", "host"] if kvm else ["-accel", "tcg", "-cpu", "max"]
+    def __init__(self, image, code, vars_copy, disk, sock, memory, log, res):
+        cmd, _ = qemu_machine("x86_64")
+        cmd += ["-m", str(memory), "-smp", "2"]
         cmd += [
             # the screen size of the EDID: the firmware and the console take it (1280x800 otherwise)
             "-display", "none", "-vga", "none", "-device", f"VGA,xres={res[0]},yres={res[1]}",
@@ -45,7 +44,7 @@ class Machine:
         ]
         cmd += nic_args(cmd[0])
         cmd += [
-            "-device", "qemu-xhci,id=xhci", "-drive", f"file={iso},format=raw,if=none,id=stick,snapshot=on",
+            "-device", "qemu-xhci,id=xhci", "-drive", f"file={image},format=raw,if=none,id=stick,snapshot=on",
             "-device", "usb-storage,bus=xhci.0,drive=stick,removable=on",
             "-drive", f"file={disk},format=raw,if=virtio",
         ]
@@ -134,10 +133,9 @@ def tui_open(im):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("iso")
+    ap.add_argument("image")
     ap.add_argument("outdir")
     ap.add_argument("--lang", default="ru", choices=("ru", "en"))
-    ap.add_argument("--encrypt", action="store_true")
     ap.add_argument("--install", action="store_true", help="also install onto the empty disk")
     ap.add_argument("--memory", type=int, default=2048)
     ap.add_argument("--size", default="800x600", help="the screen (WIDTHxHEIGHT): 800x600 fills it with the installer")
@@ -150,7 +148,7 @@ def main():
     vars_copy, disk, sock = (os.path.join(tmp, n) for n in ("vars.fd", "disk.img", "qmp.sock"))
     shutil.copyfile(vars_, vars_copy)
     subprocess.run(["truncate", "-s", "8G", disk], check=True)
-    m = Machine(os.path.abspath(args.iso), code, vars_copy, disk, sock, args.memory,
+    m = Machine(os.path.abspath(args.image), code, vars_copy, disk, sock, args.memory,
                 os.path.join(args.outdir, "serial.log"), tuple(int(v) for v in args.size.split("x")))
     n = 0
 
@@ -192,8 +190,7 @@ def main():
         print(f"installer open after {time.monotonic() - t0:.0f}s", flush=True)
         shot("language", m.settle(None, 30, 5))
         ru = args.lang == "ru"
-        step("welcome", *(["down", "ret"] if ru else ["ret"]))
-        step("keyboard", "ret")
+        step("keyboard", *(["down", "ret"] if ru else ["ret"]))
         m.keys("ret")
         time.sleep(2)
         step("timezone", text="eur")
@@ -201,12 +198,6 @@ def main():
         time.sleep(2)
         step("city", text="mosc")
         step("disk", "ret")
-        step("encryption", "ret")
-        if args.encrypt:
-            step("passphrase", "down", "ret")
-            m.type(LUKS_PW)
-            m.keys("tab")
-            step("passphrase-filled", text=LUKS_PW)
         step("user", "ret")
         m.keys("tab")
         m.type(USER)
@@ -214,7 +205,7 @@ def main():
         m.type(USER_PW)
         m.keys("tab")
         step("user-filled", text=USER_PW)
-        im = step("root", "ret")
+        step("system", "ret")
         im = step("summary", "ret")
         if not tui_open(im):
             sys.exit("lost the installer")
