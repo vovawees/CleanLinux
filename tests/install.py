@@ -113,6 +113,16 @@ class Run:
             return f"{user} could not log in"
         return None
 
+    def unlock(self, passphrase, timeout):
+        """cryptsetup in the initramfs: "Enter passphrase for /dev/vda2: ", then the passphrase.
+        cryptsetup turns the echo off and flushes the input (TCSAFLUSH) only after its prompt is
+        out, so a passphrase sent at once is echoed and thrown away: a little later, as a person"""
+        if self.con.expect(r"Enter passphrase for [^\n]*: ?", timeout) is None:
+            return self.con.panic or "the initramfs did not ask for the passphrase"
+        time.sleep(3)
+        self.con.send(passphrase)
+        return None
+
     def poweroff(self, timeout=300):
         self.con.send("poweroff")
         try:
@@ -181,12 +191,10 @@ def main():
         cmd, kvm = qemu(args.arch, code, vars_copy, [(target, False)], args.memory)
         run = Run(cmd, image + ".installed.log", args.quiet)
         try:
-            if args.encrypt:
-                # cryptsetup in the initramfs: "Enter passphrase for /dev/vda2: "
-                if run.con.expect(r"Enter passphrase for [^\n]*: ?", timeout) is None:
-                    failures.append("installed system: " + (run.con.panic or "the initramfs did not ask for the passphrase"))
-                    return report(failures, t0)
-                run.con.send(LUKS_PW)
+            err = run.unlock(LUKS_PW, timeout) if args.encrypt else None
+            if err:
+                failures.append("installed system: " + err)
+                return report(failures, t0)
             err = run.login(USER, USER_PW, timeout)
             if err:
                 failures.append("installed system: " + err)

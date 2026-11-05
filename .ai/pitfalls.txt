@@ -10,4 +10,16 @@ PITFALLS met so far
 - Rufus ISO mode copies files to FAT (label truncated to 11 chars) -> live medium not found: document DD mode.
 - burn.conf FIRMWARE in the live root is inherited by installs; device profiles must not inherit it (conf_unset).
 - cleanlinux-install tarball must not be committed: .gitignore /cleanlinux-install-*.tar.gz (make dist output).
-- sandbox: no KVM -> QEMU TCG (slow: boot to login several minutes); 2 CPUs, 4 GB RAM, 32 GB disk.
+- sandbox: no KVM -> QEMU TCG (ISO boot to installer ~40 s, full tests/iso.py 2-4 min); 2 CPUs, 4 GB RAM, 32 GB disk.
+- cryptsetup (initramfs) writes its prompt, THEN tcsetattr(TCSAFLUSH) turns echo off and drops pending input: a
+  passphrase sent the moment the prompt shows is echoed and thrown away, the boot waits forever. Tests wait 3 s.
+- tzdata: zic is a host tool; build it with `env -u CC ... make CC=gcc cc=gcc` (cross CC leaks otherwise).
+- linux-firmware: newer releases keep licenses in LICENSES/ (a directory): install loops over LICEN[CS]E* LICENSES/*.
+- mount(2) probing every fs of /proc/filesystems prints "VFS: Can't find ext4 filesystem" / "Can't find a SQUASHFS
+  superblock" unless MS_SILENT (cleanlinux-boot >= 0.4.1 passes it, as the kernel does for the root).
+- pam_motd in system-login AND login(1) printing /etc/motd = motd twice (pambase >= 2026.1-3 drops pam_motd).
+- tests/iso.py screen matching: the TUI box border is part of the line ("| > /dev/vda"); the progress screen can be
+  skipped entirely on a fast run: wait for any_of("Разметка диска", "Копирование пакетов", "CleanLinux установлен",
+  "Установка не удалась").
+- `pkill -f PATTERN` inside a bash -c whose own command line contains PATTERN kills that shell (exit 143).
+- this QEMU (Amazon Linux) has no user (slirp) networking: tests use nic_args() (hubport NIC, no network).

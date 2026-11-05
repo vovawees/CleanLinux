@@ -64,8 +64,10 @@ c grep -q '^FIRMWARE=' /etc/burn/burn.conf; c sh -c 'ls /usr/lib/firmware | grep
 c sh -c '! grep -rqs autologin /etc/dinit.d'; c sh -c '! grep -qs cleanlinux-setup /root/.bash_profile';
 c sh -c '! grep -qs root=live /etc/kernel/cmdline'; LUKSCHECKS
 for s in early-udevd early-root-rw early-fstab early-seed early-tmpfiles early-clock early-vconsole system login dhcpcd; do
-c dinitctl is-started $s; done; c burn doctor; burn list | wc -l | sed 's/^/INSTALLED-PKGS=/';
-echo "CHECKS-$D"
+c dinitctl is-started $s; done; c burn doctor; burn list | wc -l | sed 's/^/INSTALLED-PKGS=/'; c nano --version;
+if [ -d /var/lib/burn/installed/base-devel ]; then echo BASE-DEVEL=yes; c make --version; c perl -e 1; c python3 -c 1;
+c sh -c 'printf "int main(void) { return 0; }\n" | gcc -O2 -x c -o /tmp/t - && /tmp/t'; c cmake --version; c meson --version;
+else echo BASE-DEVEL=no; fi; echo "CHECKS-$D"
 """
 LUKS_CHECKS = r"""c cryptsetup isLuks --type luks2 /dev/vda2; c sh -c 'grep -q "^initrd " /boot/loader/entries/*.conf';
 c sh -c 'findmnt -no SOURCE / | grep -q "^/dev/mapper/luks-"';"""
@@ -255,7 +257,7 @@ def need(screen, what):
     return screen
 
 
-def go_through_screens(live, encrypt, timeout):
+def go_through_screens(live, encrypt, cdrom, timeout):
     """the screens of cleanlinux-setup, in Russian; returns the summary screen"""
     s = need(live.wait_for("Language . Язык", "English", timeout=timeout), "the installer did not open on the serial console")
     print(f"\n--- the installer is open:\n{s}", flush=True)
@@ -274,17 +276,20 @@ def go_through_screens(live, encrypt, timeout):
     live.keys(ENTER)
     s = need(live.wait_for("Диск", "/dev/vda"), "no disk screen with the empty disk (/dev/vda)")
     print(f"\n--- disks:\n{s}", flush=True)
-    if "установочный носитель" not in s and "installation medium" not in s:
-        print("note: the stick is not marked as the installation medium on this screen", flush=True)
-    live.keys(HOME)
-    for _ in range(8):
-        s = live.wait_for("Диск")
-        if re.search(r"^ *> /dev/vda", s, re.M):
-            break
-        live.keys(DOWN)
-        time.sleep(0.3)
-    else:
-        raise Failed("cannot select /dev/vda:\n" + s)
+    if not cdrom:
+        # the stick is listed first and cannot be chosen: the line under the list says why
+        need(live.wait_for("/dev/sda"), "the stick is not on the disk screen")
+        live.keys(HOME)
+        need(live.wait_for("> /dev/sda", "носитель установки"), "the stick is not the installation medium:\n"
+             + live.screen.text())
+        # the empty disk (the list is in a box: "| > /dev/vda ...")
+        for _ in range(4):
+            live.keys(DOWN)
+            if live.wait_for("> /dev/vda", timeout=5):
+                break
+        else:
+            raise Failed("cannot select /dev/vda:\n" + live.screen.text())
+    need(live.wait_for("> /dev/vda", "пустой"), "/dev/vda is not chosen, or not shown as empty")
     live.keys(ENTER)
     need(live.wait_for("Шифрование", "Зашифровать диск"), "no encryption screen")
     if encrypt:
@@ -354,9 +359,10 @@ def main():
         timeout = args.timeout or (300 if kvm else 1800)
         live = Live(cmd, iso + ".live.log", not args.quiet)
         try:
-            go_through_screens(live, args.encrypt, timeout)
-            need(live.wait_for("Разметка диска", "Копирование пакетов", timeout=120),
-                 "the installation does not start")
+            go_through_screens(live, args.encrypt, args.cdrom, timeout)
+            # the progress shows one step at a time (and a fast machine may be done already)
+            need(live.wait_for("Разметка диска", "Копирование пакетов", "CleanLinux установлен", "Установка не удалась",
+                               timeout=120, any_of=True), "the installation does not start")
             print(f"\n--- installing after {time.monotonic() - t0:.0f}s", flush=True)
             deadline = time.monotonic() + 5400
             while True:
@@ -398,11 +404,10 @@ def main():
         cmd, kvm = qemu(args.arch, code, vars_copy, None, target, False, args.memory, None)
         run = Run(cmd, iso + ".installed.log", args.quiet)
         try:
-            if args.encrypt:
-                if run.con.expect(r"Enter passphrase for [^\n]*: ?", timeout) is None:
-                    failures.append("installed system: " + (run.con.panic or "the initramfs did not ask for the passphrase"))
-                    return report(failures, t0)
-                run.con.send(LUKS_PW)
+            err = run.unlock(LUKS_PW, timeout) if args.encrypt else None
+            if err:
+                failures.append("installed system: " + err)
+                return report(failures, t0)
             err = run.login(USER, USER_PW, timeout)
             if err:
                 failures.append("installed system: " + err)
@@ -421,6 +426,9 @@ def main():
             m = re.search(r"INSTALLED-PKGS=(\d+)", out)
             if not m or m.group(1) != live_pkgs:
                 failures.append(f"packages: {m.group(1) if m else '?'} installed, {live_pkgs} on the live system")
+            # base-devel (ISO_BASE_DEVEL=1): the installed system builds; its checks are above
+            m = re.search(r"BASE-DEVEL=(yes|no)", out)
+            print(f"\n--- the installed system {'builds (base-devel)' if m and m.group(1) == 'yes' else 'has no base-devel'}", flush=True)
             err = run.poweroff()
             if err:
                 failures.append("installed system: " + err)

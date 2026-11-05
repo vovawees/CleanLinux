@@ -14,15 +14,15 @@ root=live:LABEL=X (cleanlinux-boot init.c live_root): resolve LABEL via libblkid
   toram copies the image into a tmpfs first (needs 1/0.7 of its size free). cleanlinux.live.image= overrides path.
 system image: mksquashfs R rootfs.sfs -comp zstd -Xcompression-level 15 -b 1M -all-root -no-xattrs, run under
   unshare -r (reads 0600 files). README.txt at the ISO root.
-live root (iso_root + live_config): ROOTFS copy + DISK_PACKAGES (linux systemd-boot cleanlinux-install iwd) +
-  ISO_PACKAGES (linux-firmware wireless-regdb) + spins; FIRMWARE="ISO_FIRMWARE" appended to R/etc/burn/burn.conf
+live root (iso_root + live_config): ROOTFS copy (with base-devel: ISO_BASE_DEVEL=1 runs stage native first) +
+  DISK_PACKAGES (linux systemd-boot cleanlinux-install iwd nano) + ISO_PACKAGES (linux-firmware wireless-regdb) + spins; FIRMWARE="ISO_FIRMWARE" appended to R/etc/burn/burn.conf
   BEFORE installing (buildid includes FIRMWARE -> distinct package from a full linux-firmware);
   package cache copied to R/var/cache/burn/packages (burn clone source); empty root password; hostname
   cleanlinux-live; fstab only tmpfs /tmp; boot.d: dhcpcd + iwd; /etc/dinit.d/getty and serial-getty override the
   cleanlinux-boot services with agetty --autologin root; /root/.bash_profile runs `cleanlinux-setup --auto` (only on
   the main console = last console= of the kernel, i.e. tty1 normally, ttyS0 with the serial entry; once per boot:
   /run/cleanlinux-setup.exit); /etc/motd hints.
-firmware list (ISO_FIRMWARE_PCS, ~766 MB raw, 2220 files): amdgpu radeon i915 xe nvidia(GSP) amd-ucode
+firmware list (ISO_FIRMWARE_PCS: 2228 files + 308 links, 358 MiB in the package): amdgpu radeon i915 xe nvidia(GSP) amd-ucode
   intel/iwlwifi intel/ibt- rtw88 rtw89 rtlwifi rtl_bt rtl_nic mediatek(mt76xx,mt79xx,BT) ath9k_htc ar3k ath10k
   (QCA6174,QCA9377,QCA988X) ath11k(WCN6855,QCA2066,QCA6390) ath12k/WCN7850 qca brcm tigon mrvl/pcie mrvl/sd.
   Every prefix must match a WHENCE entry or the recipe dies (checked against linux-firmware-20261019).
@@ -32,4 +32,9 @@ TEST tests/iso.py: QEMU q35 + OVMF, ISO as usb-storage on qemu-xhci (or --cdrom:
   appends it; ',,' escapes the comma) => TUI on ttyS0 (TERM=vt220 -> ASCII lines, 80x24). Mini VT emulator
   (Screen) reads the screens; Russian path; done -> "Выйти в консоль" -> live checks -> poweroff -> boot target
   alone -> login user/root -> checks (hostname, Europe/Moscow MSK, KEYMAP ruwin_alt_sh-UTF-8, FONT, groups, no
-  autologin/no setup at login/no root=live, FIRMWARE kept, services, package count == live count).
+  autologin/no setup at login/no root=live, FIRMWARE kept, services, package count == live count, nano; with
+  base-devel: gcc compiles and runs, make perl python3 cmake meson). LUKS: cryptsetup prompt -> wait 3 s -> type
+  (Run.unlock in tests/install.py; see pitfalls). Logs: ISO.live.log, ISO.installed.log next to the ISO.
+SCREENSHOTS tools/screenshots.py ISO OUTDIR [--lang ru|en] [--encrypt] [--install]: -vga std (1280x800 fbcon,
+  160x50), QMP send-key + screendump; waits for the blue title bar (0,0,170) at y=4; settle() ignores a diff of
+  <= 2 cells (blinking cursor); OUTDIR/boot/NN.png = first minute (systemd-boot menu), NN-name.png per screen.
