@@ -945,7 +945,7 @@ live_fs() {
 }
 
 live_image() {
-	local d=$WORK/live t=$WORK/live/top r=$WORK/live/top/@ date label img entry e serial efi kib s spin=''
+	local d=$WORK/live t=$WORK/live/top r=$WORK/live/top/@ date label img entry e serial efi screen kib s spin=''
 	local default=1-live.conf suffix='' sums
 	local -a mkvfat names=()
 	date=$(date -u +%Y%m%d)
@@ -955,9 +955,13 @@ live_image() {
 	done
 	if ((${#names[@]})); then suffix=-$(IFS=+ && echo "${names[*]}"); fi
 	img=$WORK/cleanlinux-$ARCH-${PROFILE##*/}$suffix-$date.img
+	# screen: the options of the entries for a screen. arm64 firmware names a serial console of its
+	# own (ACPI SPCR, the device tree's stdout-path), which the kernel makes the main console unless
+	# console= says otherwise: the installer and the desktop of the live system would go to the serial
+	# line, not to the screen (QEMU virt, servers, boards and handhelds with a debug UART)
 	case $ARCH in
-		x86_64) serial='console=tty0 console=ttyS0,115200' efi=BOOTX64.EFI ;;
-		aarch64) serial='console=tty0 console=ttyAMA0,115200' efi=BOOTAA64.EFI ;;
+		x86_64) serial='console=tty0 console=ttyS0,115200' efi=BOOTX64.EFI screen='' ;;
+		aarch64) serial='console=tty0 console=ttyAMA0,115200' efi=BOOTAA64.EFI screen='console=tty0 ' ;;
 	esac
 	mapfile -t mkvfat < <(disk_tool mkfs.vfat)
 	((${#mkvfat[@]})) || die "mkfs.vfat (dosfstools) is needed for the live image"
@@ -970,15 +974,16 @@ live_image() {
 	[[ -f $d/esp/EFI/BOOT/$efi ]] || die "kernel sync put no EFI/BOOT/$efi into the boot partition"
 	grep -q '^initrd ' "$entry" || die "the boot entry has no initramfs: $entry"
 	for s in "${names[@]}"; do
-		live_entry "$entry" "0-$s" "CleanLinux live ($s)" "quiet cleanlinux.live.spin=$s" >"$e/0-$s.conf"
+		live_entry "$entry" "0-$s" "CleanLinux live ($s)" "${screen}quiet cleanlinux.live.spin=$s" >"$e/0-$s.conf"
 		if [[ -z $spin ]]; then spin="cleanlinux.live.spin=$s" default=0-$s.conf; fi
 	done
-	live_entry "$entry" 1 "CleanLinux live${spin:+ (console)}" quiet >"$e/1-live.conf"
-	live_entry "$entry" 2 "CleanLinux live (copy to RAM)" "quiet cleanlinux.live.toram${spin:+ $spin}" >"$e/2-toram.conf"
-	live_entry "$entry" 3 "CleanLinux live (safe graphics)" "nomodeset${spin:+ $spin}" >"$e/3-safe-graphics.conf"
+	live_entry "$entry" 1 "CleanLinux live${spin:+ (console)}" "${screen}quiet" >"$e/1-live.conf"
+	live_entry "$entry" 2 "CleanLinux live (copy to RAM)" "${screen}quiet cleanlinux.live.toram${spin:+ $spin}" \
+		>"$e/2-toram.conf"
+	live_entry "$entry" 3 "CleanLinux live (safe graphics)" "${screen}nomodeset${spin:+ $spin}" >"$e/3-safe-graphics.conf"
 	if [[ -d $t/nonfree ]]; then
-		live_entry "$entry" 4 "CleanLinux live (no proprietary drivers)" "quiet cleanlinux.live.nonfree=0${spin:+ $spin}" \
-			>"$e/4-free-drivers.conf"
+		live_entry "$entry" 4 "CleanLinux live (no proprietary drivers)" \
+			"${screen}quiet cleanlinux.live.nonfree=0${spin:+ $spin}" >"$e/4-free-drivers.conf"
 	fi
 	live_entry "$entry" 5 "CleanLinux live (serial console)" "$serial" >"$e/5-serial.conf"
 	rm "$entry"
