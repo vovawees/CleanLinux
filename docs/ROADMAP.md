@@ -56,6 +56,7 @@ bootstrap на чужом хосте.
 - [x] ядро: zswap/zram на zstd, MGLRU, PSI, BFQ, BBR + fq, `PREEMPT_DYNAMIC`, amd-pstate EPP, платформенные драйверы и встроенные контроллеры handheld (ROG Ally, Legion Go, MSI Claw, AYANEO, OneXPlayer), sched_ext как feature
 - [x] тесты: smoke на настоящих рецептах, полный цикл rolling+++, воспроизводимость пакетов
 - [x] загрузочный образ: `bootstrap.sh disk` (GPT, ESP с systemd-boot, btrfs `@` `@home` `@snapshots`) загружается в QEMU до входа и ставится на диск (`tests/boot.py`, `tests/install.py`, x86_64)
+- [x] живой ISO: `bootstrap.sh iso` — флешка или DVD (UEFI), squashfs под overlay, firmware для ПК, установщик с экранами `cleanlinux-setup` открывается сам и ставит систему без сети; в ней `base-devel` и `nano` — она сразу собирает обновления и сборки (`tests/iso.py`, [docs/INSTALL.md](INSTALL.md), x86_64)
 - [x] [cleanlinux-boot](https://github.com/vovawees/cleanlinux-boot) и [cleanlinux-install](https://github.com/vovawees/cleanlinux-install) на C; вход (Linux-PAM, shadow), eudev, сеть (dhcpcd, iwd), e2fsprogs, btrfs-progs, dosfstools
 - [x] самосборка: `bootstrap native` — система собирает `base-devel` своим компилятором и своим burn
 - [x] железо: FIRMWARE и KERNEL_CMDLINE в профилях, пакет `hardware` (quirks, модули, I/O-планировщик), Mesa/Vulkan по `VIDEO_CARDS`, ALSA и SOF, Bluetooth, NVIDIA (`nonfree`), zram, питание и подсветка
@@ -73,8 +74,8 @@ bootstrap на чужом хосте.
 
 ## Этап 1. Загружаемая база
 
-Цель: образ, который загружается на обычном ПК и в QEMU до входа в консоль и ставится на диск одной командой.
-Сначала x86_64 + UEFI, затем aarch64.
+Цель: образ, который загружается на обычном ПК и в QEMU до входа в консоль и ставится на диск — с флешки,
+через экраны установщика. Сначала x86_64 + UEFI, затем aarch64.
 
 - [x] kmod (`depmod`, `modprobe`) и триггер burn: `modules.dep` пересобирается при каждой установке ядра или модулей
 - [x] сервисы dinit для загрузки (`cleanlinux-boot`): декларативные сервисы и помощник на C вместо shell-скриптов — `/proc` `/sys` `/dev` `/run`, fsck и `mount -a`, hostname, sysctl, загрузка модулей через libkmod, seed случайных чисел, часы, getty на tty и на последовательном порту, корректное выключение
@@ -88,6 +89,9 @@ bootstrap на чужом хосте.
 - [x] сеть: iproute2, dhcpcd, iwd (Wi-Fi), openresolv, сервисы dinit
 - [x] установщик `cleanlinux-install` (C, отдельный репозиторий): разметка, `burn -r /mnt install base`, fstab, загрузчик, пользователь — как `pacstrap` + `genfstab`, без выбора DE
 - [x] зашифрованный корень (LUKS2): cryptsetup (json-c, popt, lvm2/libdevmapper), `cleanlinux-install --encrypt`, initramfs cleanlinux-boot спрашивает пароль — `tests/install.py --encrypt` проходит в QEMU (x86_64, [#2](https://github.com/vovawees/CleanLinux/issues/2))
+- [x] живой ISO `bootstrap.sh iso` (без root): гибридный образ xorriso — раздел EFI в GPT для флешки и El Torito для DVD, systemd-boot с пунктами live / copy to RAM / safe graphics / serial, initramfs cleanlinux-boot монтирует squashfs по метке тома (`root=live:`), автовход root, кеш пакетов для `burn clone`, firmware GPU, Wi-Fi, Bluetooth и Ethernet для ПК — `tests/iso.py` (как флешка и как DVD, с LUKS2) ([#10](https://github.com/vovawees/CleanLinux/issues/10))
+- [x] установщик с экранами `cleanlinux-setup` (TUI на C, English и русский): язык, раскладка и шрифт консоли, часовой пояс с поиском, диск, шифрование, пользователь, пароли, профиль устройства, сводка, прогресс — открывается сам в живой системе ([#11](https://github.com/vovawees/CleanLinux/issues/11))
+- [ ] ISO на настоящих ПК: отчёты о загрузке и установке (флешка, Wi-Fi, видеокарты) — [#12](https://github.com/vovawees/CleanLinux/issues/12)
 
 ## Этап 2. Самодостаточная база
 

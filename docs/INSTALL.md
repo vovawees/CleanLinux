@@ -89,6 +89,8 @@ Ventoy и копирование файлов на флешку не прове�
 
    Клавиша `e` в меню правит параметры ядра выбранного пункта.
 
+   ![Меню загрузчика CleanLinux с флешки: четыре пункта и отсчёт 5 секунд](images/boot-menu.png)
+
 ## 4. Установщик
 
 Через несколько секунд после загрузки root входит сам, и на экране — установщик `cleanlinux-setup`.
@@ -109,6 +111,35 @@ Ventoy и копирование файлов на флешку не прове�
 | 10 | Всё готово к установке | сводка; дальше — подтверждение «Стереть диск?» (по умолчанию — «Назад») |
 | — | Установка | шаги, счётчик пакетов, полоса прогресса и хвост журнала `/tmp/cleanlinux-install.log` |
 | — | CleanLinux установлен | «Перезагрузить», «Выключить» или «Выйти в консоль» |
+
+Так выглядят экраны (снимки — `tools/screenshots.py` с этого же ISO в QEMU, установка с шифрованием):
+
+<table>
+<tr>
+<td width="50%"><img src="images/setup-language.png" alt="Выбор языка"><br><b>1</b> · язык</td>
+<td width="50%"><img src="images/setup-keyboard.png" alt="Раскладка клавиатуры"><br><b>3</b> · раскладка клавиатуры</td>
+</tr>
+<tr>
+<td><img src="images/setup-city.png" alt="Часовой пояс: поиск города"><br><b>4</b> · часовой пояс: напечатано <code>mosc</code></td>
+<td><img src="images/setup-disk.png" alt="Выбор диска"><br><b>5</b> · диск: флешка установки серая</td>
+</tr>
+<tr>
+<td><img src="images/setup-encryption.png" alt="Шифрование диска"><br><b>6</b> · шифрование</td>
+<td><img src="images/setup-passphrase.png" alt="Пароль шифрования"><br><b>6</b> · пароль шифрования, дважды</td>
+</tr>
+<tr>
+<td><img src="images/setup-user.png" alt="Компьютер и пользователь"><br><b>7</b> · компьютер и пользователь</td>
+<td><img src="images/setup-summary.png" alt="Сводка перед установкой"><br><b>10</b> · сводка</td>
+</tr>
+<tr>
+<td><img src="images/setup-confirm.png" alt="Подтверждение: стереть диск?"><br>подтверждение, по умолчанию — «Назад»</td>
+<td><img src="images/setup-progress.png" alt="Установка: копирование пакетов"><br>установка: пакеты копируются с флешки</td>
+</tr>
+<tr>
+<td><img src="images/setup-done.png" alt="CleanLinux установлен"><br>готово</td>
+<td></td>
+</tr>
+</table>
 
 Вынимать флешку — после выключения или когда экран погас при перезагрузке. Если установщик закрыт,
 снова открыть его: `cleanlinux-setup`. На других консолях (Alt+F2…F4) тоже вошёл root — там обычная
@@ -144,6 +175,9 @@ burn spin add https://github.com/vovawees/cleanlinux-spin-labwc   # графич
 ```
 
 Сеть Wi-Fi, к которой вы подключились в живой системе (`iwctl`), установщик переносит в новую сама.
+В системе есть редактор `nano` и всё для сборки (`base-devel`: GCC, make, perl, python, cmake, meson): burn
+собирает обновления и сборки прямо на этом компьютере — графическая сборка в первый раз собирается долго
+(часы, смотря по процессору), дальше обновляется только изменившееся.
 
 ## Установка из командной строки
 
@@ -193,7 +227,7 @@ flowchart TD
 |---|---|
 | раздел 2 (GPT) / образ El Torito | FAT: `EFI/BOOT/BOOTX64.EFI` (systemd-boot), `cleanlinux/<версия>/linux` и `initramfs.img`, `loader/` |
 | ISO 9660, `CLEANLINUX_ДАТА` | `cleanlinux/live/rootfs.sfs` — вся система, `README.txt` |
-| внутри `rootfs.sfs` | base + ядро, systemd-boot, установщик, iwd, прошивки для ПК, `wireless-regdb`; кеш пакетов `/var/cache/burn/packages` |
+| внутри `rootfs.sfs` | `base` и `base-devel` (GCC, make, perl, python, cmake, meson…), ядро, systemd-boot, установщик, iwd, nano, прошивки для ПК, `wireless-regdb`; кеш пакетов `/var/cache/burn/packages` |
 | `/etc/burn/burn.conf` | `FIRMWARE="…"` — какие прошивки собраны; новая система его сохраняет (с профилем устройства — список профиля) |
 
 ## Собрать образ самому
@@ -210,7 +244,8 @@ tests/iso.py --encrypt --cdrom build/x86_64/cleanlinux-…iso        # LUKS2, о
 | Переменная | По умолчанию | Что |
 |---|---|---|
 | `ISO_FIRMWARE` | GPU, Wi-Fi, Bluetooth, Ethernet для ПК | префиксы `/usr/lib/firmware` для `linux-firmware`; `all` — все прошивки (+2 ГБ) |
-| `ISO_PACKAGES` | `linux-firmware wireless-regdb` | пакеты поверх `DISK_PACKAGES` (ядро, systemd-boot, установщик, iwd) |
+| `ISO_PACKAGES` | `linux-firmware wireless-regdb` | пакеты поверх `DISK_PACKAGES` (ядро, systemd-boot, установщик, iwd, nano) |
+| `ISO_BASE_DEVEL` | `1` | `base-devel` в образе: установленная система сама собирает обновления и сборки (стадия `native` выполнится перед ISO, если `base-devel` ещё не собран); `0` — без стадии `native`: в образе то, что есть в rootfs |
 | `ISO_COMPRESSION` | `-comp zstd -Xcompression-level 15 -b 1M` | параметры `mksquashfs` |
 | `ISO_LABEL` | `CLEANLINUX_ДАТА` | метка тома, которую ищет initramfs |
 | `--spin URL` | — | сборка поверх базы прямо в образе (как для `disk`) |
