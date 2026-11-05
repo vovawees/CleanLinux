@@ -8,7 +8,9 @@
 #                                                default; hours of CPU), the kernel options against the
 #                                                kernel it fetched, and the boot and install tests of its
 #                                                disk image in QEMU (tests/boot.py, tests/install.py,
-#                                                also with --encrypt)
+#                                                also with --encrypt), and the install from its ISO
+#                                                through the installer's screens (tests/iso.py: as a
+#                                                USB stick, then as a DVD with --encrypt)
 #   tools/check.sh --quick                       shellcheck only (tools/hooks/pre-push)
 # The recipes default to ../CleanLinux-Recipes/packages.
 set -euo pipefail
@@ -23,7 +25,7 @@ while (($#)); do
 			MODE=full && shift
 			if [[ ${1:-} == x86_64 || ${1:-} == aarch64 ]]; then ARCH=$1 && shift; fi
 			;;
-		-h | --help) sed -n '2,13p' "$0" | cut -c3- && exit 0 ;;
+		-h | --help) sed -n '2,15p' "$0" | cut -c3- && exit 0 ;;
 		*) echo "tools/check.sh: unknown argument: $1" >&2 && exit 2 ;;
 	esac
 done
@@ -49,7 +51,7 @@ if [[ -n $KERNEL ]]; then
 fi
 [[ $MODE == full ]] || exit 0
 
-step "bootstrap $ARCH: toolchain, base, native, image, disk"
+step "bootstrap $ARCH: toolchain, base, native, image, disk, iso"
 bootstrap/bootstrap.sh --arch "$ARCH" --recipes "$RECIPES" all
 if [[ -z $KERNEL ]]; then
 	tarball=$(find build/cache/sources -maxdepth 1 -name 'linux-*.tar.xz' | sort -V | tail -1)
@@ -63,3 +65,9 @@ step "install test"
 python3 tests/install.py "$img" --arch "$ARCH"
 step "install test, the root in LUKS2"
 python3 tests/install.py "$img" --arch "$ARCH" --encrypt
+iso=$(find "build/$ARCH" -maxdepth 1 -name "cleanlinux-$ARCH-generic-$ARCH-*.iso" | sort | tail -1)
+[[ -n $iso ]] || { echo "no ISO in build/$ARCH" >&2 && exit 1; }
+step "ISO test: $iso as a USB stick"
+python3 tests/iso.py "$iso" --arch "$ARCH" -q
+step "ISO test: $iso as a DVD, the root in LUKS2"
+python3 tests/iso.py "$iso" --arch "$ARCH" --cdrom --encrypt -q

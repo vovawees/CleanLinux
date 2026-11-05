@@ -201,7 +201,18 @@ KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 - **cleanlinux-install** ([репозиторий](https://github.com/vovawees/cleanlinux-install)) — установщик на C:
   разметка GPT (ESP + btrfs с подтомами `@`, `@home`, `@snapshots`; с `--encrypt` btrfs лежит в LUKS2 —
   cryptsetup, Argon2id), `burn clone` пакетов живого образа, fstab, загрузчик профиля (systemd-boot, extlinux,
-  config.txt, boot.img), root и пользователь, Wi-Fi через iwd, параметры ядра профиля.
+  config.txt, boot.img), root и пользователь, Wi-Fi через iwd, параметры ядра профиля. `cleanlinux-setup` —
+  его экраны (TUI на C без ncurses, English и русский): язык, раскладка и шрифт консоли, часовой пояс с поиском,
+  диск (носитель живой системы и занятые диски выбрать нельзя), шифрование, имя компьютера и пользователь,
+  пароль root, профиль устройства по `burn profile detect`, сводка, подтверждение, прогресс по журналу
+  `cleanlinux-install`; на последовательной консоли — ASCII.
+- **Живая система** (ISO, `bootstrap.sh iso`): `root=live:LABEL=<метка>` — initramfs cleanlinux-boot
+  (`initramfs.d`: `enable=yes`) по метке ISO 9660 находит носитель (флешка, DVD), монтирует
+  `/cleanlinux/live/rootfs.sfs` (squashfs, zstd) под overlay с tmpfs сверху (`cleanlinux.live.toram` — сначала
+  копирует образ в память) и передаёт корень dinit; точки монтирования — `/run/cleanlinux/live/{medium,rootfs,rw}`.
+  root входит сам (`agetty --autologin`), на главной консоли открывается `cleanlinux-setup --auto`. Кеш пакетов
+  образа (`/var/cache/burn/packages`) — источник `burn clone`, поэтому установка не требует сети и даёт ровно те
+  же сборки пакетов.
 - Пользовательские сервисы сеанса — `dinit --user` через turnstile (он же даёт `XDG_RUNTIME_DIR`), сессионная
   шина D-Bus — пользовательский сервис; сборки включают свои через `/etc/dinit.d/user/boot.d`.
 
@@ -216,10 +227,15 @@ KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 | `native` | компилятор для цели, затем rootfs сам собирает `base-devel` (perl, python, cmake, …) своим gcc и burn — в chroot внутри user namespace, без инструментов хоста |
 | `image` | burn внутри rootfs, проверка через chroot/qemu, архив rootfs `.tar.zst` |
 | `disk` | загрузочный образ без root: GPT, ESP (systemd-boot, ядро профиля) + btrfs (`@`, `@home`, `@snapshots`, zstd); `--spin` добавляет сборку, `DISK_PACKAGE_FEATURES` — строки `package.features` образа |
+| `iso` | живой ISO без root: корень с `ISO_PACKAGES` (linux-firmware по списку `ISO_FIRMWARE` для ПК, wireless-regdb) и кешем пакетов → squashfs; ESP с systemd-boot, ядром и initramfs живой системы (4 пункта меню: обычный, copy to RAM, safe graphics, serial) — раздел GPT для флешки и образ El Torito для DVD (xorriso, гибридный образ) |
 
 Образ проверяют `tests/boot.py` (загрузка в QEMU до входа, монтирования, сервисы, zram, `burn doctor`) и
 `tests/install.py` (установка на второй диск через `cleanlinux-install`, загрузка установленной системы, вход
-root и пользователя; `--encrypt` — то же с корнем в LUKS2 и вводом пароля в initramfs).
+root и пользователя; `--encrypt` — то же с корнем в LUKS2 и вводом пароля в initramfs). ISO проверяет
+`tests/iso.py`: загрузка с него как с USB-флешки (`--cdrom` — как с DVD), проход по экранам установщика
+по-русски через последовательную консоль (маленький эмулятор терминала), проверки живой системы, затем
+загрузка только нового диска и проверки выбранного (часовой пояс, раскладка, пользователь, пароли, LUKS2,
+те же пакеты, что в живой системе, и ничего живого).
 После этапа `native` `tests/native-repro.sh` пересобирает внутри rootfs (своим gcc и burn, в том же chroot в
 user namespace) каждый пакет, сделанный кросс-сборкой, и сравнивает содержимое с кросс-пакетом файл за
 файлом (путь, права, sha256; `.BURN/meta` с датой и флагами не сравнивается); `--compare A B` сравнивает
