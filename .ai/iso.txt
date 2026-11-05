@@ -32,9 +32,9 @@ TEST tests/iso.py: QEMU q35 + OVMF, ISO as usb-storage on qemu-xhci (or --cdrom:
   appends it; ',,' escapes the comma) => TUI on ttyS0 (TERM=vt220 -> ASCII lines, 80x24). Mini VT emulator
   (Screen) reads the screens; Russian path; done -> "Выйти в консоль" -> live checks -> poweroff -> boot target
   alone -> login user/root -> checks (hostname, Europe/Moscow MSK, KEYMAP ruwin_alt_sh-UTF-8, FONT, groups, no
-  autologin/no setup at login/no root=live, FIRMWARE kept, services, package count == live count, nano; with
+  autologin/no setup at login/no root=live, FIRMWARE kept, services, package count == live count, nano, C.utf8; with
   base-devel: gcc compiles and runs, make perl python3 cmake meson). LUKS: cryptsetup prompt -> wait 3 s -> type
   (Run.unlock in tests/install.py; see pitfalls). Logs: ISO.live.log, ISO.installed.log next to the ISO.
-SCREENSHOTS tools/screenshots.py ISO OUTDIR [--lang ru|en] [--encrypt] [--install]: -vga std (1280x800 fbcon,
-  160x50), QMP send-key + screendump; waits for the blue title bar (0,0,170) at y=4; settle() ignores a diff of
+SCREENSHOTS tools/screenshots.py ISO OUTDIR [--lang ru|en] [--encrypt] [--install] [--size 800x600]: -device VGA
+  xres/yres (800x600 default -> docs/images, PNG8 lossless via magick ... PNG8:out.png), QMP send-key + screendump; waits for the blue title bar (0,0,170) at y=4; settle() ignores a diff of
   <= 2 cells (blinking cursor); OUTDIR/boot/NN.png = first minute (systemd-boot menu), NN-name.png per screen.

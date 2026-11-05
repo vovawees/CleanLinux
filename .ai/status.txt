@@ -1,14 +1,17 @@
 STATUS (update at every milestone)
 2026-11-05
-- DONE: live ISO x86_64 (#10) + installer with screens cleanlinux-setup (#11): bootstrap stage iso, tests/iso.py
-  (USB stick on xHCI, and --cdrom --encrypt: DVD + LUKS2) pass in QEMU/OVMF (TCG: ~2 min USB, ~3.5 min DVD+LUKS).
-  Releases on the way: cleanlinux-boot 0.4.1 (MS_SILENT probing), cleanlinux-install 0.6.3 (virtio disk model),
-  pambase 2026.1-3 (no double motd), cleanlinux-profiles 2026.11.5 (= profiles/ of the repo), recipe nano 9.3.
-- ISO contents: base + DISK_PACKAGES (linux systemd-boot cleanlinux-install iwd nano) + ISO_PACKAGES (linux-firmware
-  wireless-regdb) + base-devel (ISO_BASE_DEVEL=1: stage iso runs stage native first when the rootfs lacks it), so
-  the installed system can build (burn update, burn spin add). Without base-devel: 61 packages, 863 MB.
-- RELEASE: tag iso-2026.11.5 in CleanLinux, assets ISO + .sha256 (upload with curl -T, not --data-binary); copy
-  on the VPS /home/opc/ai_workspace/cleanlinux/. tools/screenshots.py -> docs/images/ (INSTALL.md, README).
+- RELEASED: live ISO iso-2026.11.5 (CleanLinux release, "latest"): cleanlinux-x86_64-generic-x86_64-20261105.iso,
+  1223751680 bytes, sha256 760695ff69a9acac5926a5c25c9c6db2202d093aa3d1998e1aad80ff1042b57b, 83 packages
+  (base + base-devel + linux systemd-boot cleanlinux-install iwd nano linux-firmware wireless-regdb).
+  Copy on the VPS: /home/opc/ai_workspace/cleanlinux/ (ISO + .sha256).
+- DONE #10 live ISO, #11 installer with screens (closed, board Done). tests/iso.py USB ok (252 s TCG) and
+  --cdrom --encrypt ok (343 s); docs/INSTALL.md + README with screenshots in docs/images (tools/screenshots.py).
+- Releases this round: cleanlinux-boot 0.4.1, cleanlinux-install 0.6.3, cleanlinux-profiles 2026.11.5;
+  recipes: pambase 2026.1-3, flex 2.6.4-2, ninja 1.13.2-2 (makedepends cmake), nano 9.3 (new), glibc 2.44-2
+  (C.UTF-8 compiled), perl 5.44.0-2 (libperl.so SONAME), bc 1.08.2-2 (MAKEINFO=true).
+- Build timings (2 CPUs, no KVM): toolchain ~65 min, base ~85 min, native (base-devel) ~70 min (cmake ~30 of it,
+  LTO links incl. its tests: candidate -DBUILD_TESTING=OFF), iso ~1 h on a fresh kernel, ~2 min otherwise.
 - OPEN: #12 reports from real PCs (nothing verified on hardware yet), #1 aarch64 ISO/QEMU, #3 native repro,
-  BIOS boot NOT planned (UEFI only), Secure Boot signing (shim/MOK) maybe later.
+  BIOS boot NOT planned (UEFI only), Secure Boot signing (shim/MOK) maybe later. Installer sets no LANG for the
+  installed system (C.UTF-8 from /etc/profile); ru_RU.UTF-8 needs localedef on the device.
 - PENDING (other task of the owner): Notion custom agent "Personal Assistant" setup was interrupted, offer to resume
