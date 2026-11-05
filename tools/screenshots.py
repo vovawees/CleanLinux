@@ -2,7 +2,7 @@
 """Screenshots of the installer's screens (cleanlinux-setup) on the console of the live image, in QEMU.
 
 usage: tools/screenshots.py IMAGE OUTDIR [--arch x86_64|aarch64] [--lang ru|en] [--install]
-                            [--desktop] [--size 800x600]
+                            [--desktop] [--entry N] [--size 800x600]
 
 The live image (bootstrap.sh live) boots as the USB stick of a UEFI machine with a screen and an empty
 disk, with no serial console: the installer opens on tty1, as on a PC. The tool presses the keys
@@ -13,7 +13,8 @@ virtual disk, saves the progress and the last screen. docs/INSTALL.md and the RE
 --desktop: the image of a spin boots its desktop by default (labwc: the installer in a window over
 it); the tool waits for it, saves it once it settles (OUTDIR/01-desktop.png) and the menu that Super
 opens (02-menu.png). The first minute of the screen goes to OUTDIR/boot/ either way: the boot menu
-is among it. The screen is the firmware's framebuffer (simpledrm in the guest): x86_64 has a VGA
+is among it; --entry N boots the Nth entry of that menu instead of the default (the image of a spin:
+1 is its console, where the installer opens on the screen). The screen is the firmware's framebuffer (simpledrm in the guest): x86_64 has a VGA
 of --size, aarch64 a ramfb of the firmware's size (1024x768 or so) and a USB keyboard.
 """
 import argparse
@@ -144,6 +145,25 @@ def colourful(im):
     return colours is None or len(colours) > 256
 
 
+def boot_menu(im):
+    """the menu of systemd-boot: grey text on black, the chosen entry a wide grey bar"""
+    colours = im.getcolors(maxcolors=8)
+    if not colours or len(colours) > 4:
+        return False
+    w, h = im.size
+    for y in range(0, h, 2):
+        run = best = 0
+        prev = None
+        for x in range(0, w, 2):
+            p = im.getpixel((x, y))
+            run = run + 1 if p != (0, 0, 0) and p == prev else 0
+            best = max(best, run)
+            prev = p
+        if best * 2 >= w // 4:
+            return True
+    return False
+
+
 def tui_open(im):
     """the title bar of the installer at the top of the screen"""
     w = im.width
@@ -157,6 +177,7 @@ def main():
     ap.add_argument("outdir")
     ap.add_argument("--arch", default="x86_64", choices=("x86_64", "aarch64"))
     ap.add_argument("--desktop", action="store_true", help="the desktop of a spin and its menu, not the console")
+    ap.add_argument("--entry", type=int, help="boot the Nth entry of the boot menu (0 is the first)")
     ap.add_argument("--lang", default="ru", choices=("ru", "en"))
     ap.add_argument("--install", action="store_true", help="also install onto the empty disk")
     ap.add_argument("--memory", type=int, default=2048)
@@ -193,11 +214,18 @@ def main():
         t0 = time.monotonic()
         # the first minute, every new picture into OUTDIR/boot/ (the menu of systemd-boot is one)
         os.makedirs(os.path.join(args.outdir, "boot"), exist_ok=True)
-        prev, b = None, 0
+        # and the boot menu as OUTDIR/boot/menu.png, whenever it comes (TCG: after a minute or more)
+        prev, b, menu = None, 0, False
         while time.monotonic() - t0 < args.boot_timeout:
             if m.proc.poll() is not None:
                 sys.exit("QEMU is gone")
             im = m.frame()
+            if not menu and boot_menu(im):
+                menu = True
+                im.save(os.path.join(args.outdir, "boot", "menu.png"), optimize=True)
+                if args.entry is not None:
+                    m.keys(*(["down"] * args.entry), "ret")
+                    continue
             if colourful(im) if args.desktop else tui_open(im):
                 break
             early = time.monotonic() - t0 < 60
@@ -205,7 +233,7 @@ def main():
                 b += 1
                 im.save(os.path.join(args.outdir, "boot", f"{b:02d}.png"), optimize=True)
                 prev = im
-            time.sleep(1 if early else 5)
+            time.sleep(1 if early or not menu else 5)
         else:
             shot("timeout", m.frame())
             sys.exit("the desktop did not open" if args.desktop else "the installer did not open")
