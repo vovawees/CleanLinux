@@ -239,6 +239,13 @@ stage_toolchain() {
 	step 50-gcc-final cross_gcc_final
 	step 60-gcc-runtime gcc_runtime
 	step 70-toolchain-test toolchain_test
+	step 75-toolchain-clean toolchain_clean
+}
+
+# the build trees and sources of the toolchain (11 GB for arm64) are not needed once it works: the
+# stamps keep the steps done, and a step that is run again unpacks and builds anew
+toolchain_clean() {
+	rm -rf "${OBJ:?}"/{binutils,gcc1,glibc,gcc2,test} "${SRCDIR:?}"/{binutils,gcc,glibc,linux-headers}
 }
 
 base_install() {
