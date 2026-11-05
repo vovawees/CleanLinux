@@ -12,6 +12,10 @@
 #              --spin adds a spin (git URL or directory, docs/SPINS.md) on top of the base;
 #              DISK_PACKAGE_FEATURES= lines for /etc/burn/package.features of the image
 #              ('mesa -video_cards_intel': no LLVM for an image that does not need Intel GPUs)
+#   iso        the live ISO for a USB stick or a DVD (UEFI): systemd-boot, the kernel, a squashfs of
+#              the system with firmware for PCs and its package cache; root logs in by itself and
+#              the installer with screens (cleanlinux-setup) starts; docs/INSTALL.md, tests/iso.py
+#              (ISO_FIRMWARE=all: the whole of linux-firmware; --spin as for disk)
 #
 # The rootfs doubles as the toolchain sysroot, so every package is built against the exact
 # glibc it will run with. Nothing from the host ends up in the image.
@@ -41,7 +45,7 @@ while (($#)); do
 			awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"
 			exit 0
 			;;
-		toolchain | base | native | image | disk | all) STAGES+=("$1") && shift ;;
+		toolchain | base | native | image | disk | iso | all) STAGES+=("$1") && shift ;;
 		*) die "unknown argument: $1" ;;
 	esac
 done
@@ -95,12 +99,14 @@ for stage in "${STAGES[@]}"; do
 		native) stage_native ;;
 		image) stage_image ;;
 		disk) stage_disk ;;
+		iso) stage_iso ;;
 		all)
 			stage_toolchain
 			stage_base
 			stage_native
 			stage_image
 			stage_disk
+			stage_iso
 			;;
 	esac
 done

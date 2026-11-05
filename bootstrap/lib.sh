@@ -472,7 +472,7 @@ disk_native() {
 DISK_PACKAGES=${DISK_PACKAGES:-linux systemd-boot cleanlinux-install iwd}
 
 disk_root() {
-	local d=$WORK/disk r=$WORK/disk/top/@ meta name version release parch buildid f n=0
+	local d=$WORK/disk r=$WORK/disk/top/@
 	local -a pkgs
 	if [[ -d $d ]]; then chmod -R u+w "$d" && rm -rf "$d"; fi
 	mkdir -p "$d/top/@home" "$d/top/@snapshots" "$d/esp"
@@ -488,8 +488,13 @@ disk_root() {
 	# wired network at boot (dinitctl enable dhcpcd)
 	mkdir -p "$r/etc/dinit.d/boot.d"
 	ln -sfn /usr/lib/dinit.d/dhcpcd "$r/etc/dinit.d/boot.d/dhcpcd"
-	# the image installs itself: cleanlinux-install runs burn clone, which takes the package
-	# files of every installed build from /var/cache/burn/packages
+	package_cache "$r"
+}
+
+# package_cache ROOT: the image installs itself: cleanlinux-install runs burn clone, which takes
+# the package files of every installed build from ROOT/var/cache/burn/packages
+package_cache() {
+	local r=$1 meta name version release parch buildid f n=0
 	mkdir -p "$r/var/cache/burn/packages"
 	for meta in "$r"/var/lib/burn/installed/*/meta; do
 		name=$(sed -n 's/^name=//p' "$meta") version=$(sed -n 's/^version=//p' "$meta")
@@ -519,10 +524,10 @@ disk_spins() {
 	done
 }
 
-# the spins of the image, for its name: -labwc, -kde+steam
-disk_spin_suffix() {
+# spin_suffix ROOT: the spins of the image, for its name: -labwc, -kde+steam
+spin_suffix() {
 	local s names=()
-	for s in "$WORK/disk/top/@/var/lib/burn/spins"/*; do
+	for s in "$1/var/lib/burn/spins"/*; do
 		[[ -d $s ]] && names+=("${s##*/}")
 	done
 	((${#names[@]})) || return 0
@@ -533,7 +538,7 @@ disk_spin_suffix() {
 disk_image() {
 	local d=$WORK/disk r=$WORK/disk/top/@ img esp_uuid root_uuid fs_uuid root_type console help
 	local -a mkvfat mkbtrfs
-	img=$WORK/cleanlinux-$ARCH-$PROFILE$(disk_spin_suffix).img
+	img=$WORK/cleanlinux-$ARCH-$PROFILE$(spin_suffix "$r").img
 	esp_uuid=$(</proc/sys/kernel/random/uuid) root_uuid=$(</proc/sys/kernel/random/uuid)
 	fs_uuid=$(</proc/sys/kernel/random/uuid)
 	case $ARCH in
@@ -600,4 +605,217 @@ stage_disk() {
 	step 95-disk-check disk_check
 	step 96-disk-root disk_root
 	step 97-disk-image disk_image
+}
+
+# ---- iso: the live system of a USB stick or a DVD, which installs itself ----
+#
+# A hybrid ISO 9660 image (xorriso) for UEFI PCs, Secure Boot off: written as it is onto a USB
+# stick (dd, Rufus in DD mode, balenaEtcher), burnt to a DVD, or the CD of a virtual machine. An
+# EFI system partition appended to it (in the GPT for the stick, the El Torito image for the DVD)
+# holds systemd-boot, the kernel and an initramfs; the system is /cleanlinux/live/rootfs.sfs
+# (squashfs, zstd), which the initramfs of cleanlinux-boot mounts under an overlay with a tmpfs
+# on top (root=live:LABEL=CLEANLINUX_<date>). There root logs in by itself, the installer with
+# screens (cleanlinux-setup) starts on the main console, and the package cache lets burn clone
+# copy the very same system onto the disk without a network. No root privileges are needed.
+# docs/INSTALL.md is the user's side of it, tests/iso.py installs from it in QEMU.
+#
+#   ISO_PACKAGES     on top of DISK_PACKAGES: firmware and the Wi-Fi regulatory database
+#   ISO_FIRMWARE     the firmware it carries (below; "all": the whole of linux-firmware, 2 GB more)
+#   ISO_COMPRESSION  the mksquashfs options of the image
+#   ISO_LABEL        the volume label the initramfs looks for (CLEANLINUX_<date>)
+
+ISO_PACKAGES=${ISO_PACKAGES:-linux-firmware wireless-regdb}
+ISO_COMPRESSION=${ISO_COMPRESSION:--comp zstd -Xcompression-level 15 -b 1M}
+# FIRMWARE of the linux-firmware recipe (prefixes under /usr/lib/firmware) for the ISO, kept in
+# /etc/burn/burn.conf of the live system and of the systems it installs (unless they get a device
+# profile with a list of its own): the GPUs (AMD, Intel, the GSP firmware nouveau needs for NVIDIA
+# Turing and newer), AMD microcode, and the Wi-Fi, Bluetooth and Ethernet chips of PCs and laptops
+# (Intel, Realtek, MediaTek, Qualcomm Atheros, Broadcom, Marvell)
+ISO_FIRMWARE_PCS=(amdgpu/ radeon/ i915/ xe/ nvidia/ amd-ucode/ intel/iwlwifi/ intel/ibt- rtw88/ rtw89/ rtlwifi/
+	rtl_bt/ rtl_nic/ mediatek/BT_RAM_CODE_MT79 mediatek/WIFI_ mediatek/mt7925/ mediatek/mt7927/ mediatek/mt76
+	mediatek/mt7915_ mediatek/mt7916_ ath9k_htc/ ar3k/ ath10k/QCA6174/ ath10k/QCA9377/ ath10k/QCA988X/
+	ath11k/WCN6855/ ath11k/QCA2066/ ath11k/QCA6390/ ath12k/WCN7850/ qca/ brcm/ tigon/ mrvl/pcie mrvl/sd)
+ISO_FIRMWARE=${ISO_FIRMWARE-${ISO_FIRMWARE_PCS[*]}}
+
+iso_check() {
+	local c help missing=()
+	for c in xorriso mksquashfs; do
+		command -v "$c" >/dev/null || missing+=("$c")
+	done
+	((${#missing[@]} == 0)) || die "missing host tools for the ISO: ${missing[*]} (xorriso, squashfs-tools)"
+	help=$(mksquashfs -help 2>&1) || true
+	[[ $help == *zstd* ]] || die "mksquashfs cannot compress with zstd (squashfs-tools 4.4 or newer, with zstd)"
+	[[ ${ISO_LABEL:-CLEANLINUX} =~ ^[A-Z0-9_]{1,32}$ ]] || die "ISO_LABEL=$ISO_LABEL: up to 32 of A-Z, 0-9 and _"
+	# the boot partition is made as the disk image's is (mtools, the systemd-boot build)
+	disk_check
+}
+
+iso_root() {
+	local d=$WORK/iso r=$WORK/iso/root
+	local -a pkgs
+	if [[ -d $d ]]; then chmod -R u+w "$d" && rm -rf "$d"; fi
+	mkdir -p "$d"
+	install_profiles
+	cp -a --reflink=auto "$ROOTFS" "$r"
+	if [[ -n ${DISK_PACKAGE_FEATURES:-} ]]; then
+		printf '%s\n' "$DISK_PACKAGE_FEATURES" >"$r/etc/burn/package.features"
+	fi
+	if [[ $ISO_FIRMWARE != all ]]; then
+		printf '%s\n' '' \
+			'# the firmware of the CleanLinux ISO (linux-firmware): GPUs, Wi-Fi, Bluetooth and Ethernet of PCs;' \
+			'# without this line linux-firmware is built whole (2 GB), or as the device profile lists it' \
+			"FIRMWARE=\"$ISO_FIRMWARE\"" >>"$r/etc/burn/burn.conf"
+	fi
+	read -ra pkgs <<<"$DISK_PACKAGES $ISO_PACKAGES"
+	burn -r "$r" --host-deps -y install "${pkgs[@]}"
+	disk_spins "$r"
+	burn -r "$r" doctor
+	# wired network at boot (dinitctl enable dhcpcd)
+	mkdir -p "$r/etc/dinit.d/boot.d"
+	ln -sfn /usr/lib/dinit.d/dhcpcd "$r/etc/dinit.d/boot.d/dhcpcd"
+	package_cache "$r"
+	live_config "$r"
+	du -sh "$r" "$r/usr/lib/firmware" "$r/usr/lib/modules" "$r/var/cache/burn/packages"
+}
+
+# live_config ROOT: what makes ROOT a live system: root without a password and logged in on the
+# consoles (agetty --autologin), the installer at that login (cleanlinux-setup --auto: on the main
+# console, once), Wi-Fi (iwd) next to wired networking, the hints of /etc/motd. The installed
+# system has none of it: cleanlinux-install makes it of the packages (burn clone) and the choices.
+live_config() {
+	local r=$1 agetty=/usr/bin/agetty
+	[[ -x $r$agetty ]] || die "$agetty is not in the root"
+	sed -i 's/^root:[^:]*:/root::/' "$r/etc/shadow"
+	echo cleanlinux-live >"$r/etc/hostname"
+	printf '%s\n' '# the live system: / is the image of the medium under an overlay with a tmpfs (cleanlinux-boot)' \
+		'tmpfs /tmp tmpfs nosuid,nodev 0 0' >"$r/etc/fstab"
+	if [[ -e $r/usr/lib/dinit.d/iwd ]]; then
+		ln -sfn /usr/lib/dinit.d/iwd "$r/etc/dinit.d/boot.d/iwd"
+	fi
+	cat >"$r/etc/dinit.d/getty" <<-EOF
+		# CleanLinux live: root logs in by itself on the virtual terminals (getty@tty1, getty@tty2...)
+		type = process
+		command = $agetty --noclear --autologin root \$1 linux
+		restart = true
+		smooth-recovery = true
+		termsignal = HUP
+		depends-on: system
+	EOF
+	cat >"$r/etc/dinit.d/serial-getty" <<-EOF
+		# CleanLinux live: root logs in by itself on the serial consoles (serial-getty@ttyS0...)
+		type = process
+		command = $agetty -L --autologin root 115200,57600,38400,9600 \$1 vt220
+		restart = true
+		smooth-recovery = true
+		termsignal = HUP
+		depends-on: system
+	EOF
+	mkdir -p "$r/root" && chmod 0700 "$r/root"
+	cat >"$r/root/.bash_profile" <<-'EOF'
+		# CleanLinux live: the installer opens on the main console when root logs in there, once
+		# (closed, it opens again with: cleanlinux-setup)
+		[[ -f ~/.bashrc ]] && . ~/.bashrc
+		cleanlinux-setup --auto
+	EOF
+	cat >"$r/etc/motd" <<-'EOF'
+
+		CleanLinux live system
+
+		  cleanlinux-setup     install CleanLinux on this computer, screen by screen
+		  cleanlinux-install   the same from the command line (--help)
+		  iwctl                Wi-Fi: iwctl station wlan0 scan, iwctl station wlan0 connect NAME
+		  loadkeys ru          a keyboard layout for the console (setfont cyr-sun16: Cyrillic)
+		  poweroff, reboot
+
+		Root has no password here, and all changes stay in memory.
+
+	EOF
+}
+
+# iso_entry ENTRY N TITLE OPTIONS: the boot entry of kernel sync with another title, place and
+# more kernel options
+iso_entry() {
+	awk -v n="$2" -v title="$3" -v extra="$4" '
+		/^title / { print "title " title; next }
+		/^sort-key / { print "sort-key cleanlinux-live-" n; next }
+		/^options / { print $0 (extra == "" ? "" : " " extra); next }
+		{ print }' "$1"
+}
+
+iso_image() {
+	local d=$WORK/iso r=$WORK/iso/root date label iso entry e serial efi kib
+	local -a mkvfat comp
+	date=$(date -u +%Y%m%d)
+	label=${ISO_LABEL:-CLEANLINUX_$date}
+	iso=$WORK/cleanlinux-$ARCH-$PROFILE$(spin_suffix "$r")-$date.iso
+	case $ARCH in
+		x86_64) serial='console=tty0 console=ttyS0,115200' efi=BOOTX64.EFI ;;
+		aarch64) serial='console=tty0 console=ttyAMA0,115200' efi=BOOTAA64.EFI ;;
+	esac
+	mapfile -t mkvfat < <(disk_tool mkfs.vfat)
+	((${#mkvfat[@]})) || die "mkfs.vfat (dosfstools) is needed for the ISO"
+
+	# the boot partition: systemd-boot, the kernel and an initramfs that holds just the init of
+	# cleanlinux-boot, which finds the medium by its label and mounts the image (root=live:)
+	mkdir -p "$r/etc/cleanlinux/initramfs.d" "$r/etc/kernel"
+	printf '%s\n' '# the live system (bootstrap.sh iso): the init that finds the medium and mounts its image' \
+		'enable=yes' >"$r/etc/cleanlinux/initramfs.d/10-live.conf"
+	printf '%s\n' "root=live:LABEL=$label" >"$r/etc/kernel/cmdline"
+	rm -rf "$d/esp" && mkdir -p "$d/esp"
+	run_target "$r/usr/bin/cleanlinux-boot" --root "$r" kernel sync --esp "$d/esp"
+	entry=$(find "$d/esp/loader/entries" -name 'cleanlinux-*.conf' | sort -V | tail -n 1)
+	[[ -n $entry ]] || die "kernel sync wrote no boot entry"
+	[[ -f $d/esp/EFI/BOOT/$efi ]] || die "kernel sync put no EFI/BOOT/$efi into the boot partition"
+	grep -q '^initrd ' "$entry" || die "the boot entry has no initramfs: $entry"
+	e=$d/esp/loader/entries
+	iso_entry "$entry" 1 "CleanLinux live" quiet >"$e/1-live.conf"
+	iso_entry "$entry" 2 "CleanLinux live (copy to RAM)" "quiet cleanlinux.live.toram" >"$e/2-toram.conf"
+	iso_entry "$entry" 3 "CleanLinux live (safe graphics)" nomodeset >"$e/3-safe-graphics.conf"
+	iso_entry "$entry" 4 "CleanLinux live (serial console)" "$serial" >"$e/4-serial.conf"
+	rm "$entry"
+	printf '%s\n' '# the boot menu of the CleanLinux ISO (systemd-boot; e edits an entry)' 'default 1-live.conf' \
+		'timeout 5' 'editor yes' 'console-mode keep' >"$d/esp/loader/loader.conf"
+	head -n 50 "$e"/*.conf
+	kib=$(du -sk --apparent-size "$d/esp" | cut -f1)
+	rm -f "$d/esp.img"
+	"${mkvfat[@]}" -C -n CL_EFI "$d/esp.img" $((kib + kib / 8 + 4096))
+	MTOOLS_SKIP_CHECK=1 mcopy -s -m -Q -i "$d/esp.img" "$d/esp"/* ::/
+
+	# the system: the root as a squashfs image, every file owned by root (in a user namespace,
+	# which reads every file whatever its mode)
+	rm -rf "$d/iso" && mkdir -p "$d/iso/cleanlinux/live"
+	read -ra comp <<<"$ISO_COMPRESSION"
+	unshare -r mksquashfs "$r" "$d/iso/cleanlinux/live/rootfs.sfs" "${comp[@]}" -noappend -all-root -no-xattrs \
+		-no-progress
+	cat >"$d/iso/README.txt" <<-EOF
+		CleanLinux live $date ($ARCH, profile $PROFILE): https://github.com/vovawees/CleanLinux
+
+		Write the whole image onto a USB stick, not its files: dd if=${iso##*/} of=/dev/sdX bs=4M,
+		Rufus in "DD image" mode, or balenaEtcher. Start the PC from the stick (UEFI, Secure Boot
+		off): the installer (cleanlinux-setup) opens by itself. docs/INSTALL.md tells it all.
+	EOF
+
+	# GPT for a stick (the ISO from 64 KiB on, the boot partition appended) and El Torito for
+	# a DVD, both pointing at the same boot partition
+	rm -f "$iso" "$iso.sha256"
+	xorriso -as mkisofs -iso-level 3 -full-iso9660-filenames -joliet -joliet-long -rational-rock \
+		-volid "$label" -appid "CleanLinux live $date" -publisher "CleanLinux https://github.com/vovawees/CleanLinux" \
+		-preparer "CleanLinux bootstrap.sh iso" -partition_offset 16 \
+		-append_partition 2 C12A7328-F81F-11D2-BA4B-00A0C93EC93B "$d/esp.img" -appended_part_as_gpt \
+		-e --interval:appended_partition_2:all:: -no-emul-boot \
+		-output "$iso" "$d/iso"
+	(cd "${iso%/*}" && sha256sum "${iso##*/}" >"${iso##*/}.sha256")
+	chmod -R u+w "$d" && rm -rf "$d"
+	ls -lh "$iso"
+	cat "$iso.sha256"
+}
+
+stage_iso() {
+	info "== stage iso"
+	[[ -f $STAMPS/80-base ]] || die "run the base stage first"
+	rm -f "$STAMPS/94-disk-native" "$STAMPS/95-iso-check" "$STAMPS/96-iso-root" "$STAMPS/97-iso-image"
+	step 94-disk-native disk_native
+	step 95-iso-check iso_check
+	step 96-iso-root iso_root
+	step 97-iso-image iso_image
 }
