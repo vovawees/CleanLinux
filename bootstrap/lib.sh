@@ -523,6 +523,21 @@ package_cache() {
 	info "package cache of the image: $n packages, $(du -sh "$r/var/cache/burn/packages" | cut -f1)"
 }
 
+# root_install ROOT PKG...: burn install into ROOT. When this machine runs the target's binaries and
+# ROOT has base-devel, ROOT builds the packages itself (native, as spin_add does: no cross builds of
+# Mesa and the tools it runs while it builds, glslangValidator); otherwise burn cross-compiles them
+root_install() {
+	local r=$1
+	shift
+	if can_run_target && [[ -d $r/var/lib/burn/installed/base-devel ]]; then
+		info "$*: built inside the root (native)"
+		in_root "$r" /usr/bin/burn -R /var/lib/burn/bootstrap-recipes -j "$JOBS" -y install "$@"
+		root_cleanup "$r"
+	else
+		burn -r "$r" --host-deps -y install "$@"
+	fi
+}
+
 # spin_add ROOT SPIN: burn spin add. When this machine runs the target's binaries and ROOT has
 # base-devel, ROOT builds the spin itself with its own compiler, as a device does (no cross builds
 # of GTK and the tools it runs while it builds); otherwise burn cross-compiles it from here. A
@@ -788,13 +803,14 @@ live_root() {
 	ln -sfn /usr/lib/dinit.d/dhcpcd "$r/etc/dinit.d/boot.d/dhcpcd"
 	rm -rf "$r/var/cache/burn"/*
 
-	# the proprietary drivers: what installing them adds to @
+	# the proprietary drivers: what installing them adds to @ (NVIDIA brings Mesa, Wayland and X11
+	# libraries: built inside the root, as the spins are)
 	if [[ -n $LIVE_NONFREE ]]; then
 		cp -a --reflink=auto "$r" "$w"
 		printf '%s\n' '' '# the proprietary drivers of the live image (its layer nonfree/)' 'ALLOW_NONFREE=1' \
 			>>"$w/etc/burn/burn.conf"
 		read -ra pkgs <<<"$LIVE_NONFREE"
-		burn -r "$w" --host-deps -y install "${pkgs[@]}"
+		root_install "$w" "${pkgs[@]}"
 		burn -r "$w" doctor
 		rm -rf "$w/var/cache/burn"/*
 		python3 "$HERE/layer.py" "$r" "$w" "$t/nonfree"
