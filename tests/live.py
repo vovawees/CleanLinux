@@ -53,8 +53,8 @@ c grep -q '^FIRMWARE=' /etc/burn/burn.conf; c sh -c 'ls /usr/lib/firmware | grep
 for s in early-udevd early-fstab early-tmpfiles early-clock system login dhcpcd; do c dinitctl is-started $s; done;
 dinitctl list; c burn doctor; burn list | wc -l | sed 's/^/LIVE-PKGS=/'; c sh -c 'locale -a | grep -qx C.utf8';
 c sh -c '! ls /var/cache/burn/packages 2>/dev/null | grep -q "[.]pkg[.]tar"';
-if [ -d /run/cleanlinux/live/medium/nonfree ]; then echo LIVE-NONFREE=yes; else echo LIVE-NONFREE=no; fi;
-ls /run/cleanlinux/live/medium/spins 2>/dev/null | tr '\n' ' ' | sed 's/^/LIVE-SPINS=/'; echo;
+N=no; if [ -d /run/cleanlinux/live/medium/nonfree ]; then N=yes; fi; printf 'LIVE-%s=%s\n' NONFREE $N;
+S=$(ls /run/cleanlinux/live/medium/spins 2>/dev/null | tr '\n' ' '); printf 'LIVE-%s=[%s]\n' SPINS "$S";
 df -h / /run/cleanlinux/live/medium /run/cleanlinux/live/rw; free -m;
 echo "CHECKS-$D"
 """
@@ -367,7 +367,8 @@ def main():
             live_pkgs = m.group(1) if m else None
             m = re.search(r"LIVE-NONFREE=(yes|no)", out)
             nonfree = m.group(1) if m else "no"
-            m = re.search(r"LIVE-SPINS=([^\r\n]*)", out)
+            # the markers as printed (printf LIVE-%s=...), not as the echoed command line has them
+            m = re.search(r"LIVE-SPINS=\[([^\]\r\n]*)\]", out)
             print(f"\n--- live layers: nonfree {nonfree}, spins: {(m.group(1).strip() if m else '') or '-'}", flush=True)
             live.send("poweroff")
             try:
