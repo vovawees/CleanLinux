@@ -76,7 +76,7 @@ c dinitctl is-started $s; done; c burn doctor; burn list | wc -l | sed 's/^/INST
 c sh -c 'locale -a | grep -qx C.utf8'; c sh -c '! LC_ALL=C.UTF-8 sh -c : 2>&1 | grep -q .';
 if [ -d /var/lib/burn/installed/base-devel ]; then echo BASE-DEVEL=yes; c make --version; c perl -e 1; c python3 -c 1;
 c sh -c 'printf "int main(void) { return 0; }\n" | gcc -O2 -x c -o /tmp/t - && /tmp/t'; c cmake --version; c meson --version;
-else echo BASE-DEVEL=no; fi; echo "CHECKS-$D"
+else echo BASE-DEVEL=no; fi; df -h / /boot; echo "CHECKS-$D"
 """
 
 
