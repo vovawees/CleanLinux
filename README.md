@@ -12,7 +12,8 @@ KDE Plasma, labwc, sway и любые другие DE и WM, приложени�
 
 > **Статус: pre-alpha.** Работают пакетный менеджер `burn`, профили железа, рецепты базы, драйверов и платформы, bootstrap с нуля
 > и загрузочный образ: `bootstrap.sh disk` собирает GPT-образ (ESP с systemd-boot + btrfs), который загружается в QEMU (UEFI)
-> до входа в систему и ставится на диск установщиком `cleanlinux-install` (`tests/boot.py`, `tests/install.py`; проверен x86_64).
+> до входа в систему и ставится на диск установщиком `cleanlinux-install`, в том числе с корнем в LUKS2 (`tests/boot.py`,
+> `tests/install.py [--encrypt]`; проверен x86_64).
 > Сборки ставятся поверх (`burn spin`, первая — [labwc](https://github.com/vovawees/cleanlinux-spin-labwc)). На настоящих устройствах
 > профили ещё не проверены ([docs/HARDWARE.md](docs/HARDWARE.md)); что дальше — [docs/ROADMAP.md](docs/ROADMAP.md) и доска
 > [CleanLinux roadmap](https://github.com/users/vovawees/projects/1).
@@ -157,4 +158,4 @@ There are no binary repositories: the [CleanLinux-Recipes](https://github.com/vo
 - `burn` ("burns" sources into packages for your hardware): parallel, verified prefetch of every source before building, reproducible packages (`SOURCE_DATE_EPOCH`, `-ffile-prefix-map`, clamped file times), `CCACHE=1`, `LINKER=mold|lld`, `-O3` for hot code.
 - Hardware: kernel defaults per device class (zstd zswap/zram, MGLRU, BFQ for flash, amd-pstate EPP, `PREEMPT_DYNAMIC`, BBR + fq), platform and built-in controller drivers for ROG Ally / Legion Go / MSI Claw / AYANEO / OneXPlayer / Steam Deck. Profiles for Steam Deck, ROG Ally (X), ROG Xbox Ally X, Legion Go / Go S / Go 2, MSI Claw, Retroid Pocket 5, AYN Odin 2, Mangmi Air X, Raspberry Pi 5 and more.
 - Cross-first bootstrap: `bootstrap/bootstrap.sh` builds a cross toolchain, glibc and the base system for either architecture from any host.
-- Status: pre-alpha. `bootstrap.sh disk` builds a bootable GPT image (ESP with systemd-boot + btrfs) that boots in QEMU (UEFI) to a login prompt and installs onto a disk with `cleanlinux-install` (`tests/boot.py`, `tests/install.py`; verified on x86_64). Spins go on top (`burn spin`; the first one is labwc). Real devices are not verified yet ([docs/HARDWARE.md](docs/HARDWARE.md)); next steps: [docs/ROADMAP.md](docs/ROADMAP.md) and the [roadmap board](https://github.com/users/vovawees/projects/1). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) (no hosted CI: `tools/check.sh`).
+- Status: pre-alpha. `bootstrap.sh disk` builds a bootable GPT image (ESP with systemd-boot + btrfs) that boots in QEMU (UEFI) to a login prompt and installs onto a disk with `cleanlinux-install`, optionally with the root in LUKS2 (`tests/boot.py`, `tests/install.py [--encrypt]`; verified on x86_64). Spins go on top (`burn spin`; the first one is labwc). Real devices are not verified yet ([docs/HARDWARE.md](docs/HARDWARE.md)); next steps: [docs/ROADMAP.md](docs/ROADMAP.md) and the [roadmap board](https://github.com/users/vovawees/projects/1). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) (no hosted CI: `tools/check.sh`).
