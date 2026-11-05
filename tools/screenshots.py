@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """Screenshots of the installer's screens (cleanlinux-setup) on the console of the live image, in QEMU.
 
-usage: tools/screenshots.py IMAGE OUTDIR [--lang ru|en] [--install] [--size 800x600]
+usage: tools/screenshots.py IMAGE OUTDIR [--arch x86_64|aarch64] [--lang ru|en] [--install]
+                            [--desktop] [--size 800x600]
 
 The live image (bootstrap.sh live) boots as the USB stick of a UEFI machine with a screen and an empty
 disk, with no serial console: the installer opens on tty1, as on a PC. The tool presses the keys
 a person would, through QMP, and saves every screen as it settles: OUTDIR/01-language.png and on
 (QMP screendump, the console as it is drawn, font and all). --install goes on: erases the empty
 virtual disk, saves the progress and the last screen. docs/INSTALL.md and the README show them.
+
+--desktop: the image of a spin boots its desktop by default (labwc: the installer in a window over
+it); the tool waits for it, saves it once it settles (OUTDIR/01-desktop.png) and the menu that Super
+opens (02-menu.png). The first minute of the screen goes to OUTDIR/boot/ either way: the boot menu
+is among it. The screen is the firmware's framebuffer (simpledrm in the guest): x86_64 has a VGA
+of --size, aarch64 a ramfb of the firmware's size (1024x768 or so) and a USB keyboard.
 """
 import argparse
 import json
@@ -30,12 +37,16 @@ BLUE = (0, 0, 170)
 
 
 class Machine:
-    def __init__(self, image, code, vars_copy, disk, sock, memory, log, res):
-        cmd, _ = qemu_machine("x86_64")
-        cmd += ["-m", str(memory), "-smp", "2"]
-        cmd += [
+    def __init__(self, arch, image, code, vars_copy, disk, sock, memory, log, res):
+        cmd, _ = qemu_machine(arch)
+        cmd += ["-m", str(memory), "-smp", "2", "-display", "none"]
+        if arch == "x86_64":
             # the screen size of the EDID: the firmware and the console take it (1280x800 otherwise)
-            "-display", "none", "-vga", "none", "-device", f"VGA,xres={res[0]},yres={res[1]}",
+            cmd += ["-vga", "none", "-device", f"VGA,xres={res[0]},yres={res[1]}"]
+        else:
+            # the virt machine has no VGA (and qemu-kvm of RHEL no virtio-gpu): the firmware's ramfb
+            cmd += ["-device", "ramfb"]
+        cmd += [
             "-serial", f"file:{log}", "-monitor", "none",
             "-qmp", f"unix:{sock},server=on,wait=off",
             "-drive", f"if=pflash,format=raw,unit=0,readonly=on,file={code}",
@@ -48,6 +59,8 @@ class Machine:
             "-device", "usb-storage,bus=xhci.0,drive=stick,removable=on",
             "-drive", f"file={disk},format=raw,if=virtio",
         ]
+        if arch != "x86_64":
+            cmd += ["-device", "usb-kbd,bus=xhci.0"]  # no PS/2 controller on virt
         print("qemu: " + " ".join(cmd), flush=True)
         self.proc = subprocess.Popen(cmd)
         for _ in range(100):
@@ -124,6 +137,13 @@ def same(a, b):
     return box is None or (box[2] - box[0]) * (box[3] - box[1]) <= 2 * 8 * 16
 
 
+def colourful(im):
+    """a desktop rather than a console or a boot menu: a wallpaper has far more than 16 colours"""
+    # every 4th pixel as it is (resampling would blend the glyphs of a console into many colours)
+    colours = im.resize((max(1, im.width // 4), max(1, im.height // 4)), Image.NEAREST).getcolors(maxcolors=4096)
+    return colours is None or len(colours) > 256
+
+
 def tui_open(im):
     """the title bar of the installer at the top of the screen"""
     w = im.width
@@ -135,6 +155,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("image")
     ap.add_argument("outdir")
+    ap.add_argument("--arch", default="x86_64", choices=("x86_64", "aarch64"))
+    ap.add_argument("--desktop", action="store_true", help="the desktop of a spin and its menu, not the console")
     ap.add_argument("--lang", default="ru", choices=("ru", "en"))
     ap.add_argument("--install", action="store_true", help="also install onto the empty disk")
     ap.add_argument("--memory", type=int, default=2048)
@@ -143,12 +165,12 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
-    code, vars_ = find_firmware("x86_64")
+    code, vars_ = find_firmware(args.arch)
     tmp = tempfile.mkdtemp(prefix="cleanlinux-shots.")
     vars_copy, disk, sock = (os.path.join(tmp, n) for n in ("vars.fd", "disk.img", "qmp.sock"))
     shutil.copyfile(vars_, vars_copy)
     subprocess.run(["truncate", "-s", "8G", disk], check=True)
-    m = Machine(os.path.abspath(args.image), code, vars_copy, disk, sock, args.memory,
+    m = Machine(args.arch, os.path.abspath(args.image), code, vars_copy, disk, sock, args.memory,
                 os.path.join(args.outdir, "serial.log"), tuple(int(v) for v in args.size.split("x")))
     n = 0
 
@@ -176,7 +198,7 @@ def main():
             if m.proc.poll() is not None:
                 sys.exit("QEMU is gone")
             im = m.frame()
-            if tui_open(im):
+            if colourful(im) if args.desktop else tui_open(im):
                 break
             early = time.monotonic() - t0 < 60
             if early and im.tobytes() != (prev.tobytes() if prev else None):
@@ -186,8 +208,15 @@ def main():
             time.sleep(1 if early else 5)
         else:
             shot("timeout", m.frame())
-            sys.exit("the installer did not open")
-        print(f"installer open after {time.monotonic() - t0:.0f}s", flush=True)
+            sys.exit("the desktop did not open" if args.desktop else "the installer did not open")
+        print(f"{'desktop' if args.desktop else 'installer'} open after {time.monotonic() - t0:.0f}s", flush=True)
+        if args.desktop:
+            # the panel and the installer's window come in a few seconds (TCG: more)
+            shot("desktop", m.settle(None, 600, 15))
+            # labwc opens its menu when Super is let go; Escape closes it again
+            step("menu", "meta_l")
+            m.keys("esc")
+            return 0
         shot("language", m.settle(None, 30, 5))
         ru = args.lang == "ru"
         step("keyboard", *(["down", "ret"] if ru else ["ret"]))
