@@ -259,7 +259,7 @@ flowchart LR
 | `toolchain` | кросс-тулчейн и glibc в rootfs | ~65 мин |
 | `base` | базовая система из пакетов burn | ~85 мин |
 | `native` | `base-devel`, собранный самой системой (perl, python, cmake, meson…) | ~70 мин |
-| `iso` | `build/<arch>/cleanlinux-<arch>-<профиль>-ДАТА.iso` + `.sha256` | ~1 ч: ядро ~50 мин, сам образ — меньше минуты |
+| `iso` | `build/<arch>/cleanlinux-<arch>-<профиль>-ДАТА.iso` + `.sha256` | ~1 ч: ядро ~50 мин, сам образ — пара минут |
 | `disk` | `build/<arch>/cleanlinux-<arch>-<профиль>-ДАТА.img` | минуты, если ядро уже собрано для `iso` |
 
 Собранное кешируется (`build/cache/packages`): повторная сборка ISO после правки одного пакета занимает минуту-две.

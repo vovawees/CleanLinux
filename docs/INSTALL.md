@@ -233,13 +233,14 @@ flowchart TD
 ## Собрать образ самому
 
 ```sh
-bootstrap/bootstrap.sh --arch x86_64 toolchain base iso     # с нуля: ~3–4 часа на 2 ядрах
+bootstrap/bootstrap.sh --arch x86_64 toolchain base iso     # с нуля: ~4–5 часов на 2 ядрах
 tests/iso.py build/x86_64/cleanlinux-x86_64-generic-x86_64-*.iso   # установка через экраны в QEMU
 tests/iso.py --encrypt --cdrom build/x86_64/cleanlinux-…iso        # LUKS2, образ как CD
 ```
 
 Для образа на хосте нужны `xorriso`, `squashfs-tools` (с zstd), `mtools`, `dosfstools` и то же, что для
-`disk` (модули python3 jinja2 и pyelftools для systemd-boot); root не нужен. Переменные:
+`disk` (модули python3 jinja2 и pyelftools для systemd-boot); root не нужен, но стадии `native` нужны
+непривилегированные user namespaces (`unshare -r`) и та же архитектура, что у образа (или qemu-user). Переменные:
 
 | Переменная | По умолчанию | Что |
 |---|---|---|
