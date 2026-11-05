@@ -321,6 +321,8 @@ native_build() {
 	install_profiles
 	trap native_cleanup EXIT
 	in_rootfs /usr/bin/burn -R /var/lib/burn/bootstrap-recipes -j "$JOBS" -y install "${pkgs[@]}"
+	# a rerun brings what the rootfs built up to the recipes (install only adds)
+	in_rootfs /usr/bin/burn -R /var/lib/burn/bootstrap-recipes -j "$JOBS" -y --no-sync update
 	in_rootfs /usr/bin/burn doctor
 }
 
@@ -468,8 +470,8 @@ disk_native() {
 }
 
 # DISK_PACKAGES: what the image has on top of base: the kernel and the boot loader, the installer,
-# and Wi-Fi (iwd, enabled by the installer where there is Wi-Fi)
-DISK_PACKAGES=${DISK_PACKAGES:-linux systemd-boot cleanlinux-install iwd}
+# Wi-Fi (iwd, enabled by the installer where there is Wi-Fi) and an editor for the console (nano)
+DISK_PACKAGES=${DISK_PACKAGES:-linux systemd-boot cleanlinux-install iwd nano}
 
 disk_root() {
 	local d=$WORK/disk r=$WORK/disk/top/@
@@ -623,8 +625,12 @@ stage_disk() {
 #   ISO_FIRMWARE     the firmware it carries (below; "all": the whole of linux-firmware, 2 GB more)
 #   ISO_COMPRESSION  the mksquashfs options of the image
 #   ISO_LABEL        the volume label the initramfs looks for (CLEANLINUX_<date>)
+#   ISO_BASE_DEVEL   1: the ISO carries base-devel (the native stage runs first when the rootfs
+#                    has not got it), so the systems it installs build their updates and spins
+#                    themselves; 0: no native stage for it, the ISO has what the rootfs has
 
 ISO_PACKAGES=${ISO_PACKAGES:-linux-firmware wireless-regdb}
+ISO_BASE_DEVEL=${ISO_BASE_DEVEL:-1}
 ISO_COMPRESSION=${ISO_COMPRESSION:--comp zstd -Xcompression-level 15 -b 1M}
 # FIRMWARE of the linux-firmware recipe (prefixes under /usr/lib/firmware) for the ISO, kept in
 # /etc/burn/burn.conf of the live system and of the systems it installs (unless they get a device
@@ -813,6 +819,12 @@ iso_image() {
 stage_iso() {
 	info "== stage iso"
 	[[ -f $STAMPS/80-base ]] || die "run the base stage first"
+	# burn builds from source on the device: a system with no compiler could neither update nor
+	# take a spin. perl and python of base-devel do not cross-compile: the native stage builds them
+	if [[ $ISO_BASE_DEVEL == 1 && ! -d $ROOTFS/var/lib/burn/installed/base-devel ]]; then
+		info "the ISO carries base-devel (ISO_BASE_DEVEL=1): the native stage first"
+		stage_native
+	fi
 	rm -f "$STAMPS/94-disk-native" "$STAMPS/95-iso-check" "$STAMPS/96-iso-root" "$STAMPS/97-iso-image"
 	step 94-disk-native disk_native
 	step 95-iso-check iso_check

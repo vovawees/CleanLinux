@@ -23,3 +23,11 @@ PITFALLS met so far
   "Установка не удалась").
 - `pkill -f PATTERN` inside a bash -c whose own command line contains PATTERN kills that shell (exit 143).
 - this QEMU (Amazon Linux) has no user (slirp) networking: tests use nic_args() (hubport NIC, no network).
+- glibc >= 2.35 has a C.UTF-8 locale but NOT built in: it must be compiled (glibc 2.44-2 recipe: make -C
+  $SRC/localedata objdir=$BUILD install_root=$DESTDIR install-files-C.UTF-8/UTF-8, runs the built localedef via
+  the built ld.so -> only natively or cross for the host arch). Before it: LANG=C.UTF-8 of /etc/profile = C locale.
+- cmake's own C++ feature checks (cm_cxx_unique_ptr...) treat ANY "warning" in the compiler output as failure:
+  a bash "warning: setlocale: LC_ALL: cannot change locale" (missing C.UTF-8) broke the native cmake bootstrap.
+- burn orders builds by depends+makedepends only: build_type=cmake needs makedepends=(cmake) (ninja did not).
+- "shell-init: error retrieving current directory" in perl/cmake build logs: dirs removed under running
+  shells (CMakeTmp, UU) -- harmless.

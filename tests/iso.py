@@ -47,7 +47,7 @@ c sh -c 'findmnt -no FSTYPE /run/cleanlinux/live/rootfs | grep -qx squashfs';
 c grep -qx cleanlinux-live /proc/sys/kernel/hostname; c test -s /etc/machine-id; c test -s /tmp/cleanlinux-install.log;
 c grep -q '^FIRMWARE=' /etc/burn/burn.conf; c sh -c 'ls /usr/lib/firmware | grep -q .';
 for s in early-udevd early-fstab early-tmpfiles early-clock system login dhcpcd; do c dinitctl is-started $s; done;
-dinitctl list; c burn doctor; burn list | wc -l | sed 's/^/LIVE-PKGS=/';
+dinitctl list; c burn doctor; burn list | wc -l | sed 's/^/LIVE-PKGS=/'; c sh -c 'locale -a | grep -qx C.utf8';
 ls /var/cache/burn/packages | wc -l | sed 's/^/LIVE-CACHE=/'; df -h / /run/cleanlinux/live/rw; free -m;
 echo "CHECKS-$D"
 """
@@ -65,6 +65,7 @@ c sh -c '! grep -rqs autologin /etc/dinit.d'; c sh -c '! grep -qs cleanlinux-set
 c sh -c '! grep -qs root=live /etc/kernel/cmdline'; LUKSCHECKS
 for s in early-udevd early-root-rw early-fstab early-seed early-tmpfiles early-clock early-vconsole system login dhcpcd; do
 c dinitctl is-started $s; done; c burn doctor; burn list | wc -l | sed 's/^/INSTALLED-PKGS=/'; c nano --version;
+c sh -c 'locale -a | grep -qx C.utf8'; c sh -c '! LC_ALL=C.UTF-8 sh -c : 2>&1 | grep -q .';
 if [ -d /var/lib/burn/installed/base-devel ]; then echo BASE-DEVEL=yes; c make --version; c perl -e 1; c python3 -c 1;
 c sh -c 'printf "int main(void) { return 0; }\n" | gcc -O2 -x c -o /tmp/t - && /tmp/t'; c cmake --version; c meson --version;
 else echo BASE-DEVEL=no; fi; echo "CHECKS-$D"

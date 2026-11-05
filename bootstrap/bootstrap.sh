@@ -15,7 +15,8 @@
 #   iso        the live ISO for a USB stick or a DVD (UEFI): systemd-boot, the kernel, a squashfs of
 #              the system with firmware for PCs and its package cache; root logs in by itself and
 #              the installer with screens (cleanlinux-setup) starts; docs/INSTALL.md, tests/iso.py
-#              (ISO_FIRMWARE=all: the whole of linux-firmware; --spin as for disk)
+#              (ISO_FIRMWARE=all: the whole of linux-firmware; --spin as for disk); the system has
+#              base-devel: the native stage runs first when the rootfs lacks it (ISO_BASE_DEVEL=0: not)
 #
 # The rootfs doubles as the toolchain sysroot, so every package is built against the exact
 # glibc it will run with. Nothing from the host ends up in the image.
