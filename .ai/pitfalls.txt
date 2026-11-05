@@ -1,0 +1,13 @@
+PITFALLS met so far
+- NEVER edit bootstrap/bootstrap.sh while a bootstrap run is in progress: bash reads the main script lazily by
+  offset, the running loop would resume mid-text. Sourced lib.sh is read whole at source time (safe to edit).
+  If needed: keep the edit elsewhere, `cat original > bootstrap.sh` (same inode), restore after the run.
+- mkfs.btrfs --help | grep -q under pipefail: SIGPIPE -> false failure; capture output in a variable first.
+- xorriso -smbios / qemu: commas inside -smbios value must be doubled.
+- systemd-boot reads SMBIOS type 11 io.systemd.boot.kernel-cmdline-extra= (Type #1 entries) -- used by tests.
+- Amazon Linux meson is too old (0.63 needs distutils): bootstrap uses the meson recipe's tarball (host_meson).
+- libblkid sees the iso9660 label on the whole stick AND on partition 1 -> live_medium tries each.
+- Rufus ISO mode copies files to FAT (label truncated to 11 chars) -> live medium not found: document DD mode.
+- burn.conf FIRMWARE in the live root is inherited by installs; device profiles must not inherit it (conf_unset).
+- cleanlinux-install tarball must not be committed: .gitignore /cleanlinux-install-*.tar.gz (make dist output).
+- sandbox: no KVM -> QEMU TCG (slow: boot to login several minutes); 2 CPUs, 4 GB RAM, 32 GB disk.

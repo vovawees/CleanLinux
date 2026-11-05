@@ -1,0 +1,26 @@
+REPOS (github.com/vovawees, all MIT, default branch main)
+- CleanLinux            profiles/ bootstrap/ tests/ tools/ docs/ .ai/ ; releases: profiles-YYYY.MM.DD[.N]
+                        (cleanlinux-profiles tarball, tools/profiles-tarball.sh), ISO releases iso-YYYY.MM.DD
+- CleanLinux-Recipes    packages/<name>/recipe (+patches, config fragments); 182 recipes; NO binaries;
+                        tools/check.sh (lint, links+sha256 of changed recipes, README table), tools/readme.sh --write
+                        regenerates the package table in README.md (check.sh fails when it is stale)
+- burn                  package manager in C (src/*.c), 0.9.2; make; make check
+- cleanlinux-boot       C: init (initramfs + PID1 helper for dinit), kernel sync (ESP), initramfs builder,
+                        getty, vconsole, sysusers, tmpfiles, services/ (dinit); 0.4.0 = root=live: + vconsole
+- cleanlinux-install    C: cleanlinux-install (CLI installer) + cleanlinux-setup (TUI, own tui.c, no ncurses);
+                        0.6.2. make check = tests/unit (90) + tests/cli.sh + python3 tests/setup.py (pty + mini VT)
+- cleanlinux-spin-labwc first spin (labwc desktop); cleanlinux-spin-template: template for spins
+
+RELEASE PROCEDURE (component repos burn / cleanlinux-boot / cleanlinux-install)
+1 bump VERSION in Makefile, make check, commit, push
+2 make dist  -> NAME-VER.tar.gz (git archive of HEAD, gzip -n)
+3 ~/release.sh REPO vVER "TITLE" NOTES.md TARBALL   (creates/reuses release, uploads asset; notes in Russian)
+4 CleanLinux-Recipes: packages/NAME/recipe version= + sha256=, tools/readme.sh --write, tools/check.sh, commit, push
+helpers in the sandbox home (NOT in repos): ~/gh.sh METHOD PATH [json] (REST + POST /graphql), ~/release.sh,
+token ~/.gh_token, ~/.git-credentials. git user Vovawe <vovawees@gmail.com>.
+
+ISSUES (CleanLinux): #1 aarch64 QEMU boot, #3 native repro, #6 handheld UCM, #7 input/sensors, #8 real devices,
+#9 KDE spin, #10 live ISO, #11 TUI installer. Milestones: 1 "Этап 1 · Загружаемая база", 2 "Этап 2 ·
+Самодостаточная база", 3 "Этап 3 · Железо", 4 "Этап 5 · Сборки поверх базы".
+Labels: roadmap, layer: core, layer: hardware, arch: x86_64, arch: aarch64, enhancement, documentation, spin,
+hardware, needs device.

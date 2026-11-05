@@ -1,0 +1,35 @@
+LIVE ISO (bootstrap.sh iso; lib.sh iso_check/iso_root/live_config/iso_entry/iso_image/stage_iso; #10)
+output: build/ARCH/cleanlinux-ARCH-PROFILE[-spins]-YYYYMMDD.iso + .sha256 (UEFI only, Secure Boot off)
+layout: xorriso -as mkisofs -iso-level 3 -joliet -rational-rock -volid CLEANLINUX_YYYYMMDD -partition_offset 16
+  -append_partition 2 <ESP GUID> esp.img -appended_part_as_gpt -e --interval:appended_partition_2:all:: -no-emul-boot
+  => GPT (p1 = ISO data from 32 KiB, p2 = ESP FAT "CL_EFI") for USB sticks + El Torito EFI image for DVD.
+ESP: made by `cleanlinux-boot --root R kernel sync --esp DIR` (EFI/BOOT/BOOTX64.EFI = systemd-boot,
+  cleanlinux/KVER/linux + initramfs.img), then its entry is rewritten into loader/entries/
+  1-live (quiet) 2-toram (cleanlinux.live.toram) 3-safe-graphics (nomodeset) 4-serial (console=tty0 console=ttyS0,115200);
+  loader.conf: default 1-live.conf, timeout 5, editor yes. Initramfs only because R/etc/cleanlinux/initramfs.d/
+  10-live.conf has enable=yes (live drivers are built into the kernel: loop sr iso9660 squashfs overlay usb-storage uas).
+root=live:LABEL=X (cleanlinux-boot init.c live_root): resolve LABEL via libblkid to ALL matching devices (whole
+  stick AND its p1 both carry the iso9660 label), mount RO at /run/cleanlinux/live/medium, first one with
+  /cleanlinux/live/rootfs.sfs wins; loop -> /run/cleanlinux/live/rootfs (squashfs|erofs); tmpfs rw; overlay -> /.
+  toram copies the image into a tmpfs first (needs 1/0.7 of its size free). cleanlinux.live.image= overrides path.
+system image: mksquashfs R rootfs.sfs -comp zstd -Xcompression-level 15 -b 1M -all-root -no-xattrs, run under
+  unshare -r (reads 0600 files). README.txt at the ISO root.
+live root (iso_root + live_config): ROOTFS copy + DISK_PACKAGES (linux systemd-boot cleanlinux-install iwd) +
+  ISO_PACKAGES (linux-firmware wireless-regdb) + spins; FIRMWARE="ISO_FIRMWARE" appended to R/etc/burn/burn.conf
+  BEFORE installing (buildid includes FIRMWARE -> distinct package from a full linux-firmware);
+  package cache copied to R/var/cache/burn/packages (burn clone source); empty root password; hostname
+  cleanlinux-live; fstab only tmpfs /tmp; boot.d: dhcpcd + iwd; /etc/dinit.d/getty and serial-getty override the
+  cleanlinux-boot services with agetty --autologin root; /root/.bash_profile runs `cleanlinux-setup --auto` (only on
+  the main console = last console= of the kernel, i.e. tty1 normally, ttyS0 with the serial entry; once per boot:
+  /run/cleanlinux-setup.exit); /etc/motd hints.
+firmware list (ISO_FIRMWARE_PCS, ~766 MB raw, 2220 files): amdgpu radeon i915 xe nvidia(GSP) amd-ucode
+  intel/iwlwifi intel/ibt- rtw88 rtw89 rtlwifi rtl_bt rtl_nic mediatek(mt76xx,mt79xx,BT) ath9k_htc ar3k ath10k
+  (QCA6174,QCA9377,QCA988X) ath11k(WCN6855,QCA2066,QCA6390) ath12k/WCN7850 qca brcm tigon mrvl/pcie mrvl/sd.
+  Every prefix must match a WHENCE entry or the recipe dies (checked against linux-firmware-20261019).
+  installed system keeps the line (cleanlinux-install copies burn.conf); with --profile it is commented out.
+TEST tests/iso.py: QEMU q35 + OVMF, ISO as usb-storage on qemu-xhci (or --cdrom: scsi-cd), empty virtio disk,
+  -smbios type=11,value=io.systemd.boot.kernel-cmdline-extra=console=tty0 console=ttyS0,,115200 (systemd-boot
+  appends it; ',,' escapes the comma) => TUI on ttyS0 (TERM=vt220 -> ASCII lines, 80x24). Mini VT emulator
+  (Screen) reads the screens; Russian path; done -> "Выйти в консоль" -> live checks -> poweroff -> boot target
+  alone -> login user/root -> checks (hostname, Europe/Moscow MSK, KEYMAP ruwin_alt_sh-UTF-8, FONT, groups, no
+  autologin/no setup at login/no root=live, FIRMWARE kept, services, package count == live count).

@@ -1,0 +1,14 @@
+burn facts that matter here
+- config order: defaults -> profile (BURN_PROFILE_DIR) -> R/etc/burn/burn.conf (evaluated AFTER the profile:
+  FIRMWARE= there overrides a profile's) -> -c FILE. PROFILE in burn.conf selects the profile.
+- BUILDID (12 hex) = sha256(recipe rid, CHOST, compiler, flags minus root paths, KEEP_*/LOCALES, the profile
+  build vars the recipe text mentions (e.g. FIRMWARE, VIDEO_CARDS) + hashes of files they point to, sonames of
+  deps). Package file NAME-VER-REL-ARCH-BUILDID.pkg.tar.zst in CACHE_DIR/packages.
+- pkg_uptodate compares version-release + rid only (NOT buildid): a changed FIRMWARE does not make install rebuild;
+  use `burn --rebuild install linux-firmware`.
+- clone [/SRC] [pkg..]: installs exactly SRC's builds from the cache in dependency order (dies listing missing
+  files), runs triggers. Used by cleanlinux-install. Hard links supported in packages.
+- linux-firmware recipe: FIRMWARE = prefixes (dirs or name prefixes) -> WHENCE cut to matches + link targets;
+  copy-firmware.sh --zstd; dies when a prefix matches nothing. Empty FIRMWARE = all (~2 GB).
+- spin add URL|DIR: clones into R/var/lib/burn/spins/NAME (dir = symlink; image builds replace link by copy).
+- --host-deps: makedepends of layers devel/core from the host (kernel: bc bison flex perl openssl elfutils dwarves).

@@ -1,0 +1,11 @@
+STATUS (update at every milestone)
+2026-11-05
+- DONE: cleanlinux-install 0.6.0 TUI (cleanlinux-setup), 0.6.1 VT repaint + quiet kernel, 0.6.2 FIRMWARE/--profile;
+  recipes: tzdata 2026f, linux release 13 (live options built in), cleanlinux-boot 0.4.0 (root=live:, vconsole)
+- DONE: bootstrap stage iso + tests/iso.py + docs/INSTALL.md (commit df31a32 and later)
+- IN PROGRESS: first x86_64 ISO build (toolchain+base from scratch in tmux cleanlinux_x86, then cleanlinux_iso);
+  then tests/iso.py in QEMU (TCG), fixes, release iso-YYYY.MM.DD with the ISO (<2 GB asset) + sha256, copy to VPS
+  /home/opc/ai_workspace/cleanlinux/
+- NEXT: screenshots of the TUI on a VT for README/INSTALL (QEMU screendump + sendkey via HMP), aarch64 ISO (#1),
+  BIOS boot is NOT planned (installed system is UEFI-only), Secure Boot signing (shim/MOK) maybe later
+- PENDING (other task of the owner): Notion custom agent "Personal Assistant" setup was interrupted, offer to resume

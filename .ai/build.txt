@@ -1,0 +1,18 @@
+BOOTSTRAP (bootstrap/bootstrap.sh + lib.sh)
+stages: toolchain | base | native | image | disk | iso | all(=all six). Steps: step NAME FUNC -> subshell, log
+build/ARCH/logs/NAME.log, stamp build/ARCH/stamps/NAME (rerun resumes). WORK=build/ARCH: tools/ rootfs/ src/ obj/
+host burn: bootstrap/host-burn.sh builds the release pinned by the burn recipe into build/host.
+burn() wrapper = host burn -R RECIPES -p PROFILE --target TRIPLE -j JOBS. Sources cache: build/cache/sources,
+packages: build/cache/packages/NAME-VER-REL-ARCH-BUILDID.pkg.tar.zst (BURN_CACHE=build/cache).
+toolchain: 00-host-check 01-rootfs-skeleton 10-binutils 20-gcc-pass1 30-linux-headers 40-glibc 50-gcc-final
+  60-gcc-runtime 70-toolchain-test 75-toolchain-clean (deletes build trees). base: 80-base (burn install base).
+disk: 94-disk-native 95-disk-check 96-disk-root 97-disk-image. iso: 94-disk-native 95-iso-check 96-iso-root 97-iso-image.
+TIMINGS on the 2-CPU sandbox (no KVM): toolchain ~65 min (gcc-final ~35), base ~60-70 min (includes target gcc
+for gcc-libs), kernel (linux, VIDEO_CARDS amd intel nouveau virgl) ~60-90 min, ISO squashfs ~5-10 min.
+disk: ~20 GB needed; sandbox has 32 GB total (19 GB free after toolchain).
+host tools used: xorriso, mksquashfs (zstd), mtools, dosfstools, sfdisk, unshare -r, qemu-system-x86_64 (TCG),
+OVMF /usr/share/edk2/ovmf/OVMF_CODE.fd + OVMF_VARS.fd, python3 jinja2 + pyelftools (systemd-boot build).
+run long builds in tmux: session cleanlinux_x86 (toolchain base), cleanlinux_iso (queue: waits for EXIT= in
+/data/cl/logs/x86_64-toolchain-base.log then bootstrap.sh --arch x86_64 iso > /data/cl/logs/x86_64-iso.log).
+TESTS: tests/boot.py IMAGE, tests/install.py IMAGE [--encrypt], tests/iso.py ISO [--encrypt] [--cdrom],
+tests/kernel-config.sh linux-X.tar.xz [PROFILE..], tests/smoke.sh, tests/rolling.sh, tests/native-repro.sh.

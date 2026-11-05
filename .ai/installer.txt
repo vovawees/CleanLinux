@@ -1,0 +1,22 @@
+cleanlinux-install (CLI) -- src/main.c plan.c system.c util.c
+- whole DISK: sfdisk GPT (ESP 512 MiB vfat /boot + root btrfs @ @home @snapshots, zstd:1), --encrypt LUKS2 argon2id
+  (/dev/mapper/luks-UUID, initramfs conf 50-luks-root.conf), or --target DIR pre-mounted (ESP at /boot|/efi|/boot/efi)
+- writes /etc/kernel/cmdline BEFORE packages (kernel trigger writes the entry); burn -r /mnt -y clone /
+  (package files from /var/cache/burn/packages of the running system); config: fstab by PARTUUID, hostname,
+  /etc/localtime (--timezone), /etc/vconsole.conf (--keymap --font), copies running /etc/burn/burn.conf
+  (+PROFILE=--profile; then FIRMWARE= lines commented out: conf_unset), root pw + user (wheel audio video seat),
+  dinit boot.d: dhcpcd, iwd if /sys/class/net/*/wireless (+ /var/lib/iwd/*.psk|open|8021x copied),
+  cleanlinux-boot --root /mnt kernel sync, EFI boot entry first in BootOrder (efivars; --no-efi-entry)
+cleanlinux-setup (TUI) -- src/setup.c setup_text.h (EN/RU table) tui.c/h
+- screens: lang welcome keymap timezone(region->city, type to search) disk encrypt user root profile(only if burn
+  profile detect finds a device profile != current) summary confirm(default Back) install(progress, log tail) done
+  (Restart / Power off / Exit to the console). Esc back, Ctrl+C quit dialog, Tab fields.
+- --auto: return unless on the main console (last of /sys/class/tty/console/active; tty0 -> tty0/active) and not
+  run before this boot (/run/cleanlinux-setup.exit); lock /run/cleanlinux-setup.lock
+- VT: Cyrillic font via setfont (latarcyrheb-sun16), repaint every 2 s while waiting, kernel console loglevel 1
+  while up (klogctl), restored. Serial (TERM vt1xx/vt2xx/dumb): ASCII box drawing; size from TIOCGWINSZ, LINES/
+  COLUMNS, else 80x24.
+- passes console=, nomodeset, *.modeset= of /proc/cmdline to --cmdline; passwords via 0700 dir files, wiped
+- runs cleanlinux-install with --yes; log /tmp/cleanlinux-install.log; disks: medium = under /run/cleanlinux/live
+- test hooks: CLEANLINUX_SETUP_DISKS (fake "NAME=MiB=MODEL=FS=busy|medium"), CLEANLINUX_SETUP_DATA (kbd/zone.tab
+  root), CLEANLINUX_SETUP_INSTALLER (stand-in), --dry-run
