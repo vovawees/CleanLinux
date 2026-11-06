@@ -1,22 +1,31 @@
-cleanlinux-install (CLI) -- src/main.c plan.c system.c util.c
-- whole DISK: sfdisk GPT (ESP 512 MiB vfat /boot + root btrfs @ @home @snapshots, zstd:1), --encrypt LUKS2 argon2id
-  (/dev/mapper/luks-UUID, initramfs conf 50-luks-root.conf), or --target DIR pre-mounted (ESP at /boot|/efi|/boot/efi)
-- writes /etc/kernel/cmdline BEFORE packages (kernel trigger writes the entry); burn -r /mnt -y clone /
-  (package files from /var/cache/burn/packages of the running system); config: fstab by PARTUUID, hostname,
-  /etc/localtime (--timezone), /etc/vconsole.conf (--keymap --font), copies running /etc/burn/burn.conf
-  (+PROFILE=--profile; then FIRMWARE= lines commented out: conf_unset), root pw + user (wheel audio video seat),
-  dinit boot.d: dhcpcd, iwd if /sys/class/net/*/wireless (+ /var/lib/iwd/*.psk|open|8021x copied),
-  cleanlinux-boot --root /mnt kernel sync, EFI boot entry first in BootOrder (efivars; --no-efi-entry)
-cleanlinux-setup (TUI) -- src/setup.c setup_text.h (EN/RU table) tui.c/h
-- screens: lang welcome keymap timezone(region->city, type to search) disk encrypt user root profile(only if burn
-  profile detect finds a device profile != current) summary confirm(default Back) install(progress, log tail) done
-  (Restart / Power off / Exit to the console). Esc back, Ctrl+C quit dialog, Tab fields.
-- --auto: return unless on the main console (last of /sys/class/tty/console/active; tty0 -> tty0/active) and not
-  run before this boot (/run/cleanlinux-setup.exit); lock /run/cleanlinux-setup.lock
+cleanlinux-install 0.8.1 (CLI) -- src/main.c plan.c system.c copy.c util.c
+- source: the live medium /run/cleanlinux/live/medium: @/ + nonfree/ (default; --no-nonfree: without it and
+  ALLOW_NONFREE=0) + spins/NAME/ (--spin NAME), copied as overlayfs would show them (copy.c: owners, modes,
+  xattrs, hard links, whiteouts and opaque dirs applied), never live/. --source DIR: another tree (+ nonfree/,
+  spins/ next to it). Progress "Copied 45% (1.1 GiB of 2.4 GiB)". No package rebuild, no package cache needed.
+- whole DISK: sfdisk GPT (ESP 512 MiB vfat /boot + root btrfs subvolumes @ @home @snapshots, zstd:1) or --target DIR
+  pre-mounted (ESP at /boot|/efi|/boot/efi). NO encryption (#14: --encrypt and LUKS removed in 0.7.0).
+- config: /etc/kernel/cmdline (+ --cmdline), fstab by PARTUUID, hostname, /etc/localtime (--timezone),
+  /etc/vconsole.conf (--keymap --font), burn.conf of the medium (+PROFILE=--profile; then FIRMWARE= lines
+  commented out: conf_unset), root pw + user (wheel + audio video render input seat when /etc/group has them), --autologin: /etc/cleanlinux/autologin
+  (getty of cleanlinux-boot 0.5.1 logs the user in on tty1; cleanlinux.autologin=0 disables), dinit boot.d:
+  dhcpcd, iwd if /sys/class/net/*/wireless (+ /var/lib/iwd/*.psk|open|8021x copied), cleanlinux-boot --root /mnt
+  kernel sync, EFI boot entry first in BootOrder (efivars; --no-efi-entry).
+- the medium disk is never offered/accepted (0.8.1: btrfs medium found via the mount source, not st_dev).
+cleanlinux-setup (TUI) -- src/setup.c setup_text.h (EN/RU table) tui.c/h (own, no ncurses)
+- screens: lang -> keymap -> timezone (region -> city, type to search) -> disk -> user (+ root pw = user pw option)
+  -> system (options_screen: Desktop = spins of the medium | console, default = cleanlinux.live.spin of the boot
+  entry; Proprietary drivers on/off (top-level packages of nonfree/); device profile (only if burn profile detect
+  finds one != current); Login on tty1 by itself: default on for handheld profiles) -> summary -> confirm
+  ("Erase and install", default Back) -> install (progress, log tail) -> done (Restart / Power off / Exit to the
+  console). Esc back, Ctrl+C quit dialog, Tab fields. Screens pictured in docs/images/setup-*.png.
+- --auto: only on the main console (last of /sys/class/tty/console/active; tty0 -> tty0/active), once per boot
+  (/run/cleanlinux-setup.exit), lock /run/cleanlinux-setup.lock. In the labwc spin the live desktop opens it in a
+  foot window instead (labwc-spin installer; menu entry "Install CleanLinux" reopens it).
 - VT: Cyrillic font via setfont (latarcyrheb-sun16), repaint every 2 s while waiting, kernel console loglevel 1
-  while up (klogctl), restored. Serial (TERM vt1xx/vt2xx/dumb): ASCII box drawing; size from TIOCGWINSZ, LINES/
-  COLUMNS, else 80x24.
-- passes console=, nomodeset, *.modeset= of /proc/cmdline to --cmdline; passwords via 0700 dir files, wiped
-- runs cleanlinux-install with --yes; log /tmp/cleanlinux-install.log; disks: medium = under /run/cleanlinux/live
+  while up (klogctl), restored. Serial (TERM vt1xx/vt2xx/dumb): ASCII box drawing; size from TIOCGWINSZ, else 80x24.
+- passes console=, nomodeset, *.modeset= of /proc/cmdline to --cmdline; passwords via 0700 dir files, wiped.
 - test hooks: CLEANLINUX_SETUP_DISKS (fake "NAME=MiB=MODEL=FS=busy|medium"), CLEANLINUX_SETUP_DATA (kbd/zone.tab
-  root), CLEANLINUX_SETUP_INSTALLER (stand-in), --dry-run
+  root), CLEANLINUX_SETUP_MEDIUM, CLEANLINUX_SETUP_INSTALLER (stand-in), --dry-run.
+- make check = tests/unit + tests/cli.sh + python3 tests/setup.py (pty + mini VT); docs/screens/1-language..
+  9-done.png made by tools/screens.py (copied to CleanLinux docs/images/setup-*.png; not in make dist).

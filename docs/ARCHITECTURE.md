@@ -193,26 +193,33 @@ KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
   загрузочный раздел под загрузчик устройства из `boot.d`: записи systemd-boot (UEFI), `extlinux.conf` для U-Boot
   (RK3566), `config.txt` для прошивки Raspberry Pi 5, Android boot image для ABL (Snapdragon) с осторожной
   прошивкой в раздел `boot`; device tree и оверлеи — из `/usr/lib/modules/<версия>/dtbs`. Корень монтируется без
-  initramfs (`root=PARTUUID=`, драйверы накопителей и btrfs встроены в ядро). Зашифрованному корню нужен
-  маленький initramfs (`initramfs.d`: `modules=dm-crypt`, `files=/usr/bin/cryptsetup`): его `cleanlinux-init`
-  открывает LUKS по `rd.luks.uuid=` (cryptsetup спрашивает пароль на консоли) как `/dev/mapper/luks-<UUID>` и
-  передаёт корень dinit; шифр LUKS2 (aes-xts) встроен в ядро. На arm64 `vmlinuz` — EFI-программа (zboot), рядом
-  лежит обычный `Image` для U-Boot, прошивки Pi и boot.img.
+  initramfs (`root=PARTUUID=`, драйверы накопителей и btrfs встроены в ядро). Шифрования корня (LUKS) в
+  базе нет. initramfs собирается только там, где он нужен: живой системе (`initramfs.d`: `enable=yes`) и
+  устройствам, которым модули нужны до корня. На arm64 `vmlinuz` — EFI-программа (zboot), рядом лежит обычный
+  `Image` для U-Boot, прошивки Pi и boot.img.
 - **cleanlinux-install** ([репозиторий](https://github.com/vovawees/cleanlinux-install)) — установщик на C:
-  разметка GPT (ESP + btrfs с подтомами `@`, `@home`, `@snapshots`; с `--encrypt` btrfs лежит в LUKS2 —
-  cryptsetup, Argon2id), `burn clone` пакетов живого образа, fstab, загрузчик профиля (systemd-boot, extlinux,
-  config.txt, boot.img), root и пользователь, Wi-Fi через iwd, параметры ядра профиля. `cleanlinux-setup` —
-  его экраны (TUI на C без ncurses, English и русский): язык, раскладка и шрифт консоли, часовой пояс с поиском,
-  диск (носитель живой системы и занятые диски выбрать нельзя), шифрование, имя компьютера и пользователь,
-  пароль root, профиль устройства по `burn profile detect`, сводка, подтверждение, прогресс по журналу
-  `cleanlinux-install`; на последовательной консоли — ASCII.
-- **Живая система** (ISO, `bootstrap.sh iso`): `root=live:LABEL=<метка>` — initramfs cleanlinux-boot
-  (`initramfs.d`: `enable=yes`) по метке ISO 9660 находит носитель (флешка, DVD), монтирует
-  `/cleanlinux/live/rootfs.sfs` (squashfs, zstd) под overlay с tmpfs сверху (`cleanlinux.live.toram` — сначала
-  копирует образ в память) и передаёт корень dinit; точки монтирования — `/run/cleanlinux/live/{medium,rootfs,rw}`.
-  root входит сам (`agetty --autologin`), на главной консоли открывается `cleanlinux-setup --auto`. Кеш пакетов
-  образа (`/var/cache/burn/packages`) — источник `burn clone`, поэтому установка не требует сети и даёт ровно те
-  же сборки пакетов.
+  разметка GPT (ESP 512 MiB + btrfs с подтомами `@`, `@home`, `@snapshots`, zstd), **копия слоёв носителя**
+  живой системы (`@/`, по выбору `nonfree/` и `spins/NAME/`, но не `live/`: whiteout'ы и непрозрачные каталоги
+  overlayfs, xattr, жёсткие ссылки, `copy_file_range`), fstab по PARTUUID, загрузчик профиля (systemd-boot,
+  extlinux, config.txt, boot.img), root и пользователь, автовход на tty1 (`--autologin`), Wi-Fi через iwd,
+  параметры ядра профиля; без носителя — `burn clone` из кеша пакетов. `cleanlinux-setup` — его экраны (TUI на
+  C без ncurses, English и русский, шаги слева): язык, раскладка, часовой пояс с поиском, диск (носитель живой
+  системы и занятые диски выбрать нельзя), компьютер и пользователь, «Система» (рабочий стол — спины с
+  носителя, проприетарные драйверы, профиль по `burn profile detect`, автовход), сводка, «Стереть диск?»,
+  прогресс копирования; на последовательной консоли и `TERM=vt100` — ASCII.
+- **Живая система** (live-образ, `bootstrap.sh live`): сырой GPT-образ для флешки или SD-карты — ESP
+  (`CL_EFI`: systemd-boot, ядро, initramfs) и один раздел btrfs (zstd:15) или ext4 с меткой `CL_LIVE_<дата>`,
+  где лежат обычные деревья файлов без squashfs и ISO 9660: `@/` (система, которую копирует установщик),
+  `nonfree/` (проприетарные драйверы), `spins/NAME/` (слой сборки), `live/` (автовход root, установщик,
+  hostname `cleanlinux-live`, motd). `root=live:LABEL=…`: init из initramfs cleanlinux-boot находит раздел,
+  монтирует его только для чтения и собирает корень overlay `live/` + `spins/NAME/` (`cleanlinux.live.spin=`) +
+  `nonfree/` (`cleanlinux.live.nonfree=0` — без него) + `@/` с tmpfs сверху (`cleanlinux.live.toram` — сначала
+  копирует раздел в память); точки монтирования — `/run/cleanlinux/live/{medium,rw,toram}`. Слои `nonfree/` и
+  `spins/NAME/` — разница с `@/` (`bootstrap/layer.py`: что добавила или изменила `burn install`, whiteout'ы для
+  удалённого), поэтому сборка работает и с проприетарными драйверами, и без них. root входит сам
+  (`agetty --autologin`); на главной консоли открывается `cleanlinux-setup --auto`, а с labwc — рабочий стол
+  и установщик в окне. Кеша пакетов на носителе нет: установщик копирует сами деревья, поэтому установка не
+  требует сети и даёт ровно ту же систему.
 - Пользовательские сервисы сеанса — `dinit --user` через turnstile (он же даёт `XDG_RUNTIME_DIR`), сессионная
   шина D-Bus — пользовательский сервис; сборки включают свои через `/etc/dinit.d/user/boot.d`.
 
@@ -227,15 +234,16 @@ KERNEL_CMDLINE="clk_ignore_unused pd_ignore_unused"
 | `native` | компилятор для цели, затем rootfs сам собирает `base-devel` (perl, python, cmake, …) своим gcc и burn — в chroot внутри user namespace, без инструментов хоста |
 | `image` | burn внутри rootfs, проверка через chroot/qemu, архив rootfs `.tar.zst` |
 | `disk` | загрузочный образ без root: GPT, ESP (systemd-boot, ядро профиля) + btrfs (`@`, `@home`, `@snapshots`, zstd); `--spin` добавляет сборку, `DISK_PACKAGE_FEATURES` — строки `package.features` образа |
-| `iso` | живой ISO без root: корень с `ISO_PACKAGES` (linux-firmware по списку `ISO_FIRMWARE` для ПК, wireless-regdb) и кешем пакетов → squashfs; ESP с systemd-boot, ядром и initramfs живой системы (4 пункта меню: обычный, copy to RAM, safe graphics, serial) — раздел GPT для флешки и образ El Torito для DVD (xorriso, гибридный образ) |
+| `live` | live-образ без root: корень с `LIVE_PACKAGES` (linux-firmware по списку `LIVE_FIRMWARE`, wireless-regdb) и `base-devel` (стадия `native` выполнится первой, если его нет), слои `nonfree/` (`LIVE_NONFREE`), `spins/NAME/` (`--spin`) и `live/`; раздел btrfs (`mkfs.btrfs --rootdir --compress zstd:15 --shrink`) или ext4 (`LIVE_FS=ext4`), ESP с systemd-boot, ядром и initramfs живой системы (до 6 пунктов меню: сборка, консоль, copy to RAM, safe graphics, без проприетарных драйверов, serial) — сырой GPT-образ `cleanlinux-<arch>-<профиль>[-<сборка>]-<дата>.img` + `.sha256` |
 
-Образ проверяют `tests/boot.py` (загрузка в QEMU до входа, монтирования, сервисы, zram, `burn doctor`) и
+Образ диска проверяют `tests/boot.py` (загрузка в QEMU до входа, монтирования, сервисы, zram, `burn doctor`) и
 `tests/install.py` (установка на второй диск через `cleanlinux-install`, загрузка установленной системы, вход
-root и пользователя; `--encrypt` — то же с корнем в LUKS2 и вводом пароля в initramfs). ISO проверяет
-`tests/iso.py`: загрузка с него как с USB-флешки (`--cdrom` — как с DVD), проход по экранам установщика
-по-русски через последовательную консоль (маленький эмулятор терминала), проверки живой системы, затем
-загрузка только нового диска и проверки выбранного (часовой пояс, раскладка, пользователь, пароли, LUKS2,
-те же пакеты, что в живой системе, и ничего живого).
+root и пользователя). Live-образ проверяет `tests/live.py`: загрузка с него как с USB-флешки (xHCI,
+usb-storage), проход по экранам установщика по-русски через последовательную консоль (маленький эмулятор
+терминала), проверки живой системы (overlay из слоёв носителя, без squashfs и кеша пакетов, сервисы), затем
+загрузка только нового диска и проверки выбранного (часовой пояс, раскладка, пользователь, пароли, слои,
+ничего живого). `tests/layer.sh` проверяет `bootstrap/layer.py`: слой поверх основы даёт в overlayfs ровно
+изменённое дерево.
 После этапа `native` `tests/native-repro.sh` пересобирает внутри rootfs (своим gcc и burn, в том же chroot в
 user namespace) каждый пакет, сделанный кросс-сборкой, и сравнивает содержимое с кросс-пакетом файл за
 файлом (путь, права, sha256; `.BURN/meta` с датой и флагами не сравнивается); `--compare A B` сравнивает

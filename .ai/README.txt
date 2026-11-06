@@ -1,6 +1,6 @@
 CleanLinux .ai/ -- dense working notes for AI agents (and humans) continuing this project
 =========================================================================================
-Read order: README.txt -> status.txt -> repos.txt -> build.txt -> iso.txt -> installer.txt -> burn.txt -> pitfalls.txt
+Read order: README.txt -> status.txt -> repos.txt -> build.txt -> live.txt -> installer.txt -> burn.txt -> pitfalls.txt
 
 RULES OF THE OWNER (vovawees) -- always apply
 - current task has top priority; answer in Russian; docs mostly Russian (+ English summary section)

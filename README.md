@@ -4,7 +4,7 @@
 
 **База для Linux-сборок, как Arch — собранная с нуля и под твоё железо**
 
-[![ISO](https://img.shields.io/badge/live%20ISO-2026.11.5-blue?logo=linux&logoColor=white)](https://github.com/vovawees/CleanLinux/releases/tag/iso-2026.11.5)
+[![live](https://img.shields.io/badge/live%20USB-2026.11.6-blue?logo=linux&logoColor=white)](https://github.com/vovawees/CleanLinux/releases/tag/live-2026.11.6)
 ![status](https://img.shields.io/badge/status-pre--alpha-orange)
 ![arch](https://img.shields.io/badge/arch-x86__64%20%7C%20arm64-informational)
 ![boot](https://img.shields.io/badge/boot-UEFI%20%C2%B7%20systemd--boot-informational)
@@ -12,6 +12,7 @@
 ![libc](https://img.shields.io/badge/libc-glibc%202.44-success)
 ![kernel](https://img.shields.io/badge/Linux-7.3-yellow)
 ![gcc](https://img.shields.io/badge/GCC-16-yellow)
+[![desktop](https://img.shields.io/badge/desktop-labwc-8a2be2)](https://github.com/vovawees/cleanlinux-spin-labwc)
 [![license](https://img.shields.io/github/license/vovawees/CleanLinux)](LICENSE)
 
 [Установить](#установить-с-флешки) · [Идея](#идея) · [Железо](#поддерживаемое-железо) · [Собрать](#собрать-самому) · [Документация](#документация) · [English](#english)
@@ -24,12 +25,14 @@ cross-first bootstrap. Драйверы и оптимизация под кон�
 а обновляется всё по модели **rolling release+++** — с планом, снимком и откатом.
 
 KDE Plasma, labwc, sway и любые другие DE и WM, приложения, Steam — **не часть базы**: это *сборки* поверх,
-в своих репозиториях. База ничего не выбирает за тебя, но даёт всё, чтобы любая сборка хорошо работала на твоём железе.
+в своих репозиториях. База ничего не выбирает за тебя, но даёт всё, чтобы любая сборка хорошо работала на твоём
+железе. Живой образ приходит со сборкой [labwc](https://github.com/vovawees/cleanlinux-spin-labwc) — рабочим
+столом, который ставится по желанию.
 
 > [!NOTE]
-> **Статус: pre-alpha.** Живой ISO загружается с флешки или DVD (UEFI) и ставит систему на диск через
-> установщик с экранами; это проверяется в QEMU (`tests/iso.py`), на настоящих ПК — пока нет
-> ([отчёт о железе](https://github.com/vovawees/CleanLinux/issues/new?template=hardware_report.yml) очень поможет).
+> **Статус: pre-alpha.** Живой образ загружается с флешки (UEFI, x86_64 и arm64), открывает рабочий стол labwc
+> и ставит систему на диск через установщик с экранами; это проверяется в QEMU (`tests/live.py`), на настоящих
+> устройствах — пока нет ([отчёт о железе](https://github.com/vovawees/CleanLinux/issues/new?template=hardware_report.yml) очень поможет).
 > Что дальше — [docs/ROADMAP.md](docs/ROADMAP.md) и доска [CleanLinux roadmap](https://github.com/users/vovawees/projects/1).
 
 ## Содержание
@@ -51,30 +54,32 @@ KDE Plasma, labwc, sway и любые другие DE и WM, приложени�
 
 | Шаг | Что сделать |
 |---|---|
-| **1. Скачать** | `cleanlinux-x86_64-generic-x86_64-20261105.iso` (1,2 ГБ) и `.sha256` из [релиза ISO](https://github.com/vovawees/CleanLinux/releases/tag/iso-2026.11.5) |
-| **2. Записать** | образ целиком на флешку от 2 ГБ: `sudo dd if=cleanlinux-….iso of=/dev/sdX bs=4M conv=fsync status=progress`, [Rufus](https://rufus.ie) в режиме **DD-образа** или [balenaEtcher](https://etcher.balena.io) |
-| **3. Загрузиться** | меню загрузки ПК (F12, F11, F8, Esc…) → «UEFI: флешка»; **Secure Boot выключен** |
-| **4. Установить** | установщик открывается сам: язык → раскладка → часовой пояс → диск → шифрование → пользователь → пароли → «Стереть и установить» |
+| **1. Скачать** | образ из [релиза live-2026.11.6](https://github.com/vovawees/CleanLinux/releases/tag/live-2026.11.6) и его `.sha256`: `cleanlinux-x86_64-generic-x86_64-labwc-20261106.img` (x86_64, 1060 МиБ) или `cleanlinux-aarch64-generic-aarch64-labwc-20261105.img` (arm64, 668 МиБ) |
+| **2. Записать** | образ целиком на флешку или SD-карту от 2 ГБ (для arm64 хватит 1 ГБ): `sudo dd if=cleanlinux-….img of=/dev/sdX bs=4M conv=fsync status=progress`, [Rufus](https://rufus.ie) или [balenaEtcher](https://etcher.balena.io) |
+| **3. Загрузиться** | меню загрузки (F12, F11, F8, Esc…) → «UEFI: флешка»; **Secure Boot выключен**; через 5 секунд — рабочий стол |
+| **4. Установить** | окно установщика на рабочем столе: язык → раскладка → часовой пояс → диск → пользователь → система → «Стереть и установить» |
 
 <p align="center">
-  <img src="docs/images/setup-disk.png" width="49%" alt="Установщик CleanLinux: выбор диска">
-  <img src="docs/images/setup-progress.png" width="49%" alt="Установщик CleanLinux: копирование пакетов">
+  <img src="docs/images/desktop-labwc.png" width="49%" alt="Живая система CleanLinux: рабочий стол labwc и окно установщика">
+  <img src="docs/images/setup-system.png" width="49%" alt="Установщик CleanLinux: экран «Система»">
 </p>
 
-Сеть для установки не нужна: всё, что ставится, уже в образе. Компьютер — любой x86_64 с UEFI примерно с 2010 года
-(x86-64-v2), от 2 ГБ памяти и 8 ГБ диска. Установленная система — консольная база с компилятором и системами
-сборки (`base-devel`) и редактором `nano`: `burn update` и графические сборки (`burn spin add`) ставятся сразу.
-Подробно, с клавишами меню загрузки по производителям, всеми экранами установщика и решением проблем, —
-в **[docs/INSTALL.md](docs/INSTALL.md)**.
+Сеть для установки не нужна: установщик копирует систему прямо с флешки. Компьютер — любой x86_64 с UEFI
+примерно с 2010 года (x86-64-v2) или arm64-устройство, которое загружает EFI с флешки; от 2 ГБ памяти и 8 ГБ
+диска. Установленная система — база с компилятором и системами сборки (`base-devel`) и редактором `nano`, по
+желанию — с рабочим столом labwc и проприетарными драйверами: `burn update` и другие сборки (`burn spin add`)
+ставятся сразу. Подробно, с клавишами меню загрузки по производителям, всеми экранами установщика и решением
+проблем, — в **[docs/INSTALL.md](docs/INSTALL.md)**.
 
 ```mermaid
 flowchart LR
-    usb["флешка<br/>ISO 9660 + раздел EFI"] --> sdboot["systemd-boot<br/>меню из 4 пунктов"]
+    usb["флешка: GPT<br/>ESP + btrfs CL_LIVE_…"] --> sdboot["systemd-boot<br/>labwc · консоль · RAM · …"]
     sdboot --> initrd["initramfs<br/>cleanlinux-boot"]
-    initrd -->|"root=live:LABEL=…"| live["живая система<br/>squashfs + overlay в памяти"]
-    live -->|"root входит сам"| setup["cleanlinux-setup<br/>экраны установщика"]
-    setup --> install["cleanlinux-install<br/>GPT · ESP · btrfs · LUKS2"]
-    install -->|"burn clone<br/>из кеша пакетов"| disk[("CleanLinux<br/>на диске")]
+    initrd -->|"root=live:LABEL=…"| live["живая система<br/>overlay слоёв + tmpfs"]
+    live -->|"root входит сам"| desk["рабочий стол labwc<br/>или консоль"]
+    desk --> setup["cleanlinux-setup<br/>экраны установщика"]
+    setup --> install["cleanlinux-install<br/>GPT · ESP · btrfs"]
+    install -->|"копия слоёв<br/>@/ · nonfree/ · spins/labwc/"| disk[("CleanLinux<br/>на диске")]
 ```
 
 | Экран установщика | Что там |
@@ -82,13 +87,12 @@ flowchart LR
 | Язык · Language | English или русский — на нём будут все экраны |
 | Раскладка, часовой пояс | применяются сразу; в списках работает поиск по буквам |
 | Диск | модель, размер, шина, что на нём сейчас; флешку установки выбрать нельзя |
-| Шифрование | без него или LUKS2 — пароль при каждой загрузке |
-| Компьютер и пользователь, root | имя компьютера, пользователь (группа `wheel`), пароли |
-| Оборудование | если `burn profile detect` узнал устройство (Steam Deck, ROG Ally…) — его профиль |
-| Установка → готово | шаги, счётчик пакетов, журнал; «Перезагрузить», «Выключить» или «Выйти в консоль» |
+| Компьютер и пользователь | имя компьютера, пользователь (группа `wheel`), пароль; root получает тот же |
+| Система | рабочий стол (labwc или консоль), проприетарные драйверы (включены), профиль устройства, если `burn profile detect` его узнал (Steam Deck, ROG Ally…), автоматический вход |
+| Итог → установка → готово | сводка, «Стереть диск?», копирование с полосой и журналом; «Перезагрузить», «Выключить» или «Выйти в консоль» |
 
-На диске: GPT, раздел EFI 512 МБ с systemd-boot и btrfs с подтомами `@`, `@home`, `@snapshots` (сжатие zstd),
-по желанию — в LUKS2. Управление установщиком: стрелки, Enter, Esc — назад, Ctrl+C — выйти без изменений.
+На диске: GPT, раздел EFI 512 МиБ с systemd-boot и btrfs с подтомами `@`, `@home`, `@snapshots` (сжатие zstd).
+Управление установщиком: стрелки, Enter, Esc — назад, Ctrl+C — выйти без изменений.
 
 ## Идея
 
@@ -147,9 +151,9 @@ features и настройками; она ставится и обновляе�
 | Профиль | Устройство | CPU | `VIDEO_CARDS` |
 |---|---|---|---|
 | `native` | эта машина (автоопределение) | `-march=native` / `-mcpu=native` | по `/sys` |
-| `generic-x86_64` | любой x86_64 ПК с ~2009 г. — **профиль ISO** | `x86-64-v2` | amd intel nouveau virgl |
+| `generic-x86_64` | любой x86_64 ПК с ~2009 г. — **профиль live-образа** | `x86-64-v2` | amd intel nouveau virgl |
 | `generic-x86_64-v3` | современные ПК (Haswell+, Zen+) | `x86-64-v3` (AVX2, FMA) | amd intel nouveau virgl |
-| `generic-aarch64` | любая arm64-плата или устройство | `armv8-a` | freedreno panfrost v3d lima etnaviv virgl |
+| `generic-aarch64` | любая arm64-плата или устройство — **профиль live-образа arm64** | `armv8-a` | freedreno panfrost v3d lima etnaviv virgl |
 | `steam-deck` | Valve Steam Deck LCD/OLED | `znver2` | amd |
 | `rog-ally` | ASUS ROG Ally / Ally X | `znver4` | amd |
 | `rog-xbox-ally-x` | ASUS ROG Xbox Ally X, Lenovo Legion Go 2 (Z2 Extreme) | `znver5` | amd |
@@ -170,30 +174,34 @@ burn profile detect    # какой профиль подходит этой м�
 burn profile show      # итоговые CFLAGS, features, драйверы
 ```
 
-Firmware в ISO — для видеокарт (AMD, Intel, NVIDIA GSP для nouveau), микрокод AMD и Wi-Fi, Bluetooth и Ethernet
-ноутбуков и ПК (Intel, Realtek, MediaTek, Qualcomm Atheros, Broadcom, Marvell): около 2200 файлов (≈360 МБ), а не весь
-linux-firmware. Что проверено на настоящих устройствах — [docs/HARDWARE.md](docs/HARDWARE.md).
+Firmware в live-образе — не весь linux-firmware, а то, что нужно чаще всего: на x86_64 — видеокарты (AMD, Intel,
+NVIDIA GSP для nouveau), микрокод AMD, Wi-Fi, Bluetooth и Ethernet ноутбуков и ПК (Intel, Realtek, MediaTek,
+Qualcomm Atheros, Broadcom, Marvell) и усилители звука, всего 362 МиБ; на arm64 — Adreno и DSP Snapdragon, Mali,
+Wi-Fi и Bluetooth плат и консолей, 225 МиБ. Проприетарные драйверы (NVIDIA, DSP Steam Deck OLED) — отдельным
+слоем, включены по умолчанию. Что проверено на настоящих устройствах — [docs/HARDWARE.md](docs/HARDWARE.md).
 
 ## Репозитории проекта
 
 | Репозиторий | Что это |
 |---|---|
-| **CleanLinux** (этот) | профили железа, bootstrap, образ диска и живой ISO, тесты в QEMU, документация |
+| **CleanLinux** (этот) | профили железа, bootstrap, образ диска и live-образ для флешки, тесты в QEMU, документация |
 | [CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes) | рецепты базы — только текст: ссылки на upstream, sha256, команды сборки |
 | [burn](https://github.com/vovawees/burn) | пакетный менеджер на C: рецепты, сборка, установка, rolling+++, `burn clone`, `burn spin` |
-| [cleanlinux-boot](https://github.com/vovawees/cleanlinux-boot) | сервисы dinit для загрузки и помощник на C: ранние ФС, udev, getty, ядра в ESP, initramfs (LUKS, живая система) |
-| [cleanlinux-install](https://github.com/vovawees/cleanlinux-install) | установщик на C: `cleanlinux-install` (командная строка) и `cleanlinux-setup` (экраны) |
-| [cleanlinux-spin-template](https://github.com/vovawees/cleanlinux-spin-template), [cleanlinux-spin-labwc](https://github.com/vovawees/cleanlinux-spin-labwc) | шаблон сборки и первая сборка (labwc) |
+| [cleanlinux-boot](https://github.com/vovawees/cleanlinux-boot) | сервисы dinit для загрузки и помощник на C: ранние ФС, udev, getty, автовход, ядра в ESP, initramfs (живая система: overlay слоёв носителя) |
+| [cleanlinux-install](https://github.com/vovawees/cleanlinux-install) | установщик на C: `cleanlinux-install` (командная строка: копия слоёв носителя или `burn clone`) и `cleanlinux-setup` (экраны) |
+| [cleanlinux-spin-labwc](https://github.com/vovawees/cleanlinux-spin-labwc) | сборка labwc — рабочий стол живого образа: панель sfwbar, экранная клавиатура, автоповорот, масштаб по DPI |
+| [cleanlinux-spin-template](https://github.com/vovawees/cleanlinux-spin-template) | шаблон своей сборки |
 
 ## Структура
 
 ```
 CleanLinux/
-├── .ai/                    плотные заметки для ИИ-агентов: репозитории, сборка, ISO, установщик, подводные камни
+├── .ai/                    плотные заметки для ИИ-агентов: репозитории, сборка, live-образ, установщик, подводные камни
 ├── .github/                шаблоны issues (баг, идея, отчёт о железе), pull request'а, CODEOWNERS — без Actions
 ├── bootstrap/
-│   ├── bootstrap.sh        сборка с нуля: toolchain → base → tarball | disk | iso | native
-│   ├── lib.sh              шаги стадий: тулчейн, base, образ диска, живой ISO
+│   ├── bootstrap.sh        сборка с нуля: toolchain → base → native → image | disk | live
+│   ├── lib.sh              шаги стадий: тулчейн, base, образ диска, live-образ
+│   ├── layer.py            слой live-носителя: разница двух деревьев с whiteout'ами overlayfs
 │   └── host-burn.sh        burn для хоста — из того же релиза, что ставится в систему
 ├── profiles/
 │   ├── base.profile        общие умолчания: флаги, features, ядро
@@ -204,16 +212,17 @@ CleanLinux/
 │   ├── smoke.sh            сборка и установка настоящих рецептов в тестовый корень
 │   ├── rolling.sh          rolling+++: soname bump, preserved libs, ABI-пересборка, hold, rollback
 │   ├── kernel-config.sh    параметры ядра профилей разрешаются как задуманы
+│   ├── layer.sh            слои bootstrap/layer.py через настоящий overlayfs
 │   ├── boot.py             образ диска загружается в QEMU (UEFI) до входа
-│   ├── install.py          образ ставится на диск cleanlinux-install (и в LUKS2)
-│   ├── iso.py              ISO с флешки в QEMU: экраны установщика → установленная система
+│   ├── install.py          образ диска ставится на другой диск cleanlinux-install
+│   ├── live.py             live-образ как флешка в QEMU: экраны установщика → установленная система
 │   └── native-repro.sh     нативная пересборка даёт те же пакеты
 ├── tools/
-│   ├── check.sh            все проверки (--quick перед push, --full с ISO в QEMU)
-│   ├── screenshots.py      снимки экранов установщика с ISO в QEMU — для документации
+│   ├── check.sh            все проверки (--quick перед push, --full с live-образом в QEMU)
+│   ├── screenshots.py      снимки меню загрузки, рабочего стола и экранов установщика в QEMU — для документации
 │   └── …                   hooks/pre-push, profiles-tarball.sh, dt-kconfig.py
 └── docs/                   INSTALL, SCOPE, ARCHITECTURE, ROLLING, RECIPES, SPINS, HARDWARE, ROADMAP
-    └── images/             снимки экранов установщика
+    └── images/             меню загрузки, рабочий стол, экраны установщика
 ```
 
 ## Собрать самому
@@ -235,14 +244,16 @@ tests/smoke.sh      # собирает и ставит zstd, zlib-ng, xz, lz4, p
 tests/rolling.sh    # soname bump, preserved libs, ABI-пересборка, hold, rollback
 ```
 
-Собрать систему с нуля и живой ISO — без root-прав, на любом Linux x86_64 или arm64:
+Собрать систему с нуля и live-образ — без root-прав, на любом Linux x86_64 или arm64:
 
 ```sh
-bootstrap/bootstrap.sh --arch x86_64 toolchain base iso   # живой ISO: тулчейн → base → native → ISO
-bootstrap/bootstrap.sh --arch x86_64 iso                  # пересобрать только ISO, когда base уже есть
-bootstrap/bootstrap.sh --arch x86_64 disk                 # образ диска для QEMU или dd на диск
-bootstrap/bootstrap.sh --arch x86_64 all                  # всё: toolchain base native image disk iso
-bootstrap/bootstrap.sh --profile mangmi-air-x all         # arm64 под устройство
+bootstrap/bootstrap.sh --arch x86_64 toolchain base live   # live-образ: тулчейн → base → native → образ
+bootstrap/bootstrap.sh --arch x86_64 \
+    --spin https://github.com/vovawees/cleanlinux-spin-labwc live   # с рабочим столом labwc
+bootstrap/bootstrap.sh --arch x86_64 live                  # пересобрать только образ, когда base уже есть
+bootstrap/bootstrap.sh --arch x86_64 disk                  # образ диска для QEMU или dd на диск
+bootstrap/bootstrap.sh --arch x86_64 all                   # всё: toolchain base native image disk live
+bootstrap/bootstrap.sh --profile mangmi-air-x all          # arm64 под устройство
 ```
 
 ```mermaid
@@ -251,26 +262,29 @@ flowchart LR
     base --> image["image<br/>rootfs.tar.zst"]
     base --> disk["disk<br/>GPT-образ:<br/>ESP + btrfs"]
     base --> native["native<br/>самосборка<br/>base-devel"]
-    native --> iso["iso<br/>живой ISO:<br/>squashfs + ESP"]
+    native --> live["live<br/>образ флешки:<br/>ESP + btrfs со слоями"]
+    spin["--spin<br/>сборка labwc"] -.-> live
 ```
 
-| Стадия | Что получается | Время на 2 ядрах (замер) |
-|---|---|---|
-| `toolchain` | кросс-тулчейн и glibc в rootfs | ~65 мин |
-| `base` | базовая система из пакетов burn | ~85 мин |
-| `native` | `base-devel`, собранный самой системой (perl, python, cmake, meson…) | ~70 мин |
-| `iso` | `build/<arch>/cleanlinux-<arch>-<профиль>-ДАТА.iso` + `.sha256` | ~1 ч: ядро ~50 мин, сам образ — пара минут |
-| `disk` | `build/<arch>/cleanlinux-<arch>-<профиль>-ДАТА.img` | минуты, если ядро уже собрано для `iso` |
+| Стадия | Что получается | x86_64, 2 ядра (замер) | arm64, 4 ядра (замер) |
+|---|---|---|---|
+| `toolchain` | кросс-тулчейн и glibc в rootfs | ~65 мин | ~37 мин |
+| `base` | базовая система из пакетов burn | ~85 мин | ~52 мин |
+| `native` | `base-devel`, собранный самой системой (perl, python, cmake, meson…) | ~70 мин | ~33 мин |
+| `live` | `build/<arch>/cleanlinux-<arch>-<профиль>[-<сборка>]-ДАТА.img` + `.sha256` | ядро ~35 мин, сборка labwc с проприетарными драйверами ~30 мин, образ ~3 мин | ядро ~38 мин, сборка labwc ~24 мин, образ ~2 мин |
+| `disk` | `build/<arch>/cleanlinux-<arch>-<профиль>.img` | минуты, если ядро уже собрано | минуты |
 
-Собранное кешируется (`build/cache/packages`): повторная сборка ISO после правки одного пакета занимает минуту-две.
+Собранное кешируется (`build/cache/packages`): повторная сборка образа после правки одного пакета занимает
+минуты.
 
 Хосту нужны gcc/g++, make, bison, flex, gawk, m4, bc, gperf, perl (со всеми модулями ядра Perl: на Fedora,
 RHEL, Amazon Linux — `perl-core`), python3, ninja, cmake, pkg-config, git, curl и заголовки libzstd, libelf и
-OpenSSL; для образов — mtools, dosfstools и модули python3 jinja2 и pyelftools (сборка systemd-boot), для ISO —
-ещё xorriso и squashfs-tools с zstd; для чужой архитектуры — `qemu-user`. burn для хоста bootstrap собирает сам,
-meson берёт из рецепта. Каждый шаг пишет лог в `build/<arch>/logs/` и отметку в `build/<arch>/stamps/` —
-прерванный bootstrap продолжается с того же места. Места нужно около 25 ГБ. Переменные ISO (`ISO_FIRMWARE`,
-`ISO_PACKAGES`, `ISO_LABEL`, `--spin`) — в [docs/INSTALL.md](docs/INSTALL.md#собрать-образ-самому).
+OpenSSL; для образов — mtools, dosfstools, sfdisk и модули python3 jinja2 и pyelftools (сборка systemd-boot);
+`mkfs.btrfs` для live-образа берётся из собранного rootfs; для чужой архитектуры — `qemu-user`. burn для хоста
+bootstrap собирает сам, meson берёт из рецепта. Каждый шаг пишет лог в `build/<arch>/logs/` и отметку в
+`build/<arch>/stamps/` — прерванный bootstrap продолжается с того же места. Места нужно около 25 ГБ. Переменные
+образа (`LIVE_FIRMWARE`, `LIVE_NONFREE`, `LIVE_FS`, `LIVE_LABEL`, `--spin`, `DISK_PACKAGE_FEATURES`) — в
+[docs/INSTALL.md](docs/INSTALL.md#собрать-образ-самому).
 
 ## Тесты
 
@@ -283,15 +297,16 @@ meson берёт из рецепта. Каждый шаг пишет лог в `
 | `tests/rolling.sh` | весь цикл rolling+++ | burn |
 | `tests/kernel-config.sh` | профили дают ядру нужные параметры | исходники ядра |
 | `tests/boot.py IMG` | образ диска грузится в QEMU (UEFI) до входа, без ошибок сервисов | QEMU, OVMF |
-| `tests/install.py IMG [--encrypt]` | установка с образа на другой диск и загрузка с него | QEMU, OVMF |
-| `tests/iso.py ISO [--encrypt] [--cdrom]` | ISO как флешка (USB) или DVD: экраны установщика по-русски, живая система, установленная система | QEMU, OVMF |
+| `tests/install.py IMG` | установка с образа диска на другой диск и загрузка с него | QEMU, OVMF |
+| `tests/layer.sh` | слои live-носителя (`bootstrap/layer.py`) дают в overlayfs ровно изменённое дерево | user namespaces |
+| `tests/live.py IMG [--arch aarch64]` | live-образ как USB-флешка: экраны установщика по-русски, живая система (overlay слоёв, без squashfs и кеша пакетов), установленная система | QEMU, OVMF/AAVMF |
 | `tests/native-repro.sh` | нативная пересборка совпадает с cross-сборкой | система после `bootstrap native` |
 
 ## Документация
 
 | Документ | О чём |
 |---|---|
-| [docs/INSTALL.md](docs/INSTALL.md) | установка с флешки: запись, загрузка, экраны установщика, первый запуск, проблемы |
+| [docs/INSTALL.md](docs/INSTALL.md) | установка с флешки: какой образ взять, запись, загрузка, рабочий стол, экраны установщика, первый запуск, проблемы, размер |
 | [docs/SCOPE.md](docs/SCOPE.md) | что входит в базу, а что ставится сверху |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | из чего состоит система и почему так |
 | [docs/ROLLING.md](docs/ROLLING.md) | как устроены обновления rolling release+++ |
@@ -313,10 +328,10 @@ hardware-specific tuning for PCs, laptops, handhelds and boards, on **x86_64 and
 managers, applications and games are not part of the base: they are *spins* on top (KDE Plasma, labwc, sway, ...),
 maintained in their own repositories and installed with the same package manager (see [docs/SCOPE.md](docs/SCOPE.md)).
 
-- **Install from a USB stick**: download the live ISO from the [releases](https://github.com/vovawees/CleanLinux/releases), write the whole image to a stick (`dd`, Rufus in DD mode, balenaEtcher), boot it on a UEFI PC with Secure Boot off, and the installer with screens (`cleanlinux-setup`, English or Russian) installs CleanLinux to a disk: GPT, a 512 MB ESP with systemd-boot, btrfs with `@`, `@home`, `@snapshots`, optionally in LUKS2. No network is needed: the ISO carries the packages it installs (`burn clone`). See [docs/INSTALL.md](docs/INSTALL.md#english).
+- **Install from a USB stick**: download the live image (`.img`, x86_64 or arm64) from the [releases](https://github.com/vovawees/CleanLinux/releases), write the whole image to a stick or an SD card (`dd`, Rufus, balenaEtcher) and boot it on a UEFI machine with Secure Boot off: the [labwc desktop](https://github.com/vovawees/cleanlinux-spin-labwc) opens with the installer (`cleanlinux-setup`, English or Russian) in a window, or the installer alone with the *console* entry. It installs CleanLinux to a disk: GPT, a 512 MiB ESP with systemd-boot, btrfs with `@`, `@home`, `@snapshots`, with or without the desktop and the proprietary drivers. No network is needed: the image holds the system as plain trees on btrfs (no squashfs), and the installer copies them. See [docs/INSTALL.md](docs/INSTALL.md#english).
 - There are no binary repositories: [CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes) holds only upstream source links, checksums and build recipes (like the AUR, but for the whole system), and the `burn` package manager builds everything locally, tuned by a hardware profile (CPU flags, GPU drivers, kernel options, hardware features).
 - glibc (not musl), GCC 16, merged `/usr`, dinit; minimal by default (no docs, extra locales or static libraries; LTO).
 - **Rolling release+++**: updates are planned, fully built before anything is installed, snapshotted, ABI-aware (preserved libraries + automatic rebuilds after soname changes), verified with `burn doctor`, and can be rolled back or held per package. A daily upstream watcher publishes verified version bumps to the `edge` channel.
 - Hardware: kernel defaults per device class (zstd zswap/zram, MGLRU, BFQ for flash, amd-pstate EPP, `PREEMPT_DYNAMIC`, BBR + fq), platform and built-in controller drivers for ROG Ally / Legion Go / MSI Claw / AYANEO / OneXPlayer / Steam Deck, profiles for 13 devices.
-- Cross-first bootstrap without root: `bootstrap/bootstrap.sh --arch x86_64 all` builds a cross toolchain, glibc, the base system and the live ISO from any Linux host; `disk` makes a GPT image instead.
-- Status: pre-alpha. The ISO boots and installs in QEMU (`tests/iso.py`, as a USB stick or a DVD), the disk image too (`tests/boot.py`, `tests/install.py [--encrypt]`); real hardware is not verified yet ([docs/HARDWARE.md](docs/HARDWARE.md)). Next steps: [docs/ROADMAP.md](docs/ROADMAP.md) and the [roadmap board](https://github.com/users/vovawees/projects/1). No hosted CI: `tools/check.sh` runs locally ([CONTRIBUTING.md](CONTRIBUTING.md)).
+- Cross-first bootstrap without root: `bootstrap/bootstrap.sh --arch x86_64 toolchain base live` builds a cross toolchain, glibc, the base system, base-devel (built by the system itself) and the live image from any Linux host; `--spin URL` adds a desktop as a layer of its own; `disk` makes a GPT image instead.
+- Status: pre-alpha. The live image boots and installs in QEMU on x86_64 and arm64 (`tests/live.py`: a USB stick, the installer's screens, the installed system), the disk image too (`tests/boot.py`, `tests/install.py`); real hardware is not verified yet ([docs/HARDWARE.md](docs/HARDWARE.md)). Next steps: [docs/ROADMAP.md](docs/ROADMAP.md) and the [roadmap board](https://github.com/users/vovawees/projects/1). No hosted CI: `tools/check.sh` runs locally ([CONTRIBUTING.md](CONTRIBUTING.md)).

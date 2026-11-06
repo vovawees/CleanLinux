@@ -39,8 +39,8 @@ bootstrap на чужом хосте.
 |---|---|---|
 | [burn](https://github.com/vovawees/burn) | пакетный менеджер на C (C17, только libc + libzstd): рецепты, сборка, установка, rolling+++ | используется: bootstrap собирает его из релиза, пакет `burn` в `base`; bash-прототип — тег `burn-prototype` |
 | [cleanlinux-boot](https://github.com/vovawees/cleanlinux-boot) | сервисы dinit для загрузки и помощник на C: ранние ФС, udev, модули через libkmod, getty, выключение, ядра в ESP (systemd-boot), initramfs, zram, питание | используется: пакет `cleanlinux-boot` в `base` |
-| [cleanlinux-install](https://github.com/vovawees/cleanlinux-install) | установщик на C: GPT + ESP + btrfs, `burn clone`, fstab по PARTUUID, systemd-boot, пользователь | используется: пакет `cleanlinux-install`, `tests/install.py` |
-| [cleanlinux-spin-template](https://github.com/vovawees/cleanlinux-spin-template), [cleanlinux-spin-labwc](https://github.com/vovawees/cleanlinux-spin-labwc) | шаблон сборки и первая сборка (labwc) | этап 5 |
+| [cleanlinux-install](https://github.com/vovawees/cleanlinux-install) | установщик на C: GPT + ESP + btrfs, копия слоёв live-носителя (или `burn clone`), fstab по PARTUUID, systemd-boot, пользователь, экраны `cleanlinux-setup` | используется: пакет `cleanlinux-install`, `tests/install.py`, `tests/live.py` |
+| [cleanlinux-spin-template](https://github.com/vovawees/cleanlinux-spin-template), [cleanlinux-spin-labwc](https://github.com/vovawees/cleanlinux-spin-labwc) | шаблон сборки и сборка labwc — рабочий стол live-образа | этап 5 |
 | CleanLinux | документация, профили железа, bootstrap, образы, тесты (`tools/check.sh`) | — |
 | [CleanLinux-Recipes](https://github.com/vovawees/CleanLinux-Recipes) | рецепты базы: только текст, без бинарников | — |
 
@@ -56,7 +56,7 @@ bootstrap на чужом хосте.
 - [x] ядро: zswap/zram на zstd, MGLRU, PSI, BFQ, BBR + fq, `PREEMPT_DYNAMIC`, amd-pstate EPP, платформенные драйверы и встроенные контроллеры handheld (ROG Ally, Legion Go, MSI Claw, AYANEO, OneXPlayer), sched_ext как feature
 - [x] тесты: smoke на настоящих рецептах, полный цикл rolling+++, воспроизводимость пакетов
 - [x] загрузочный образ: `bootstrap.sh disk` (GPT, ESP с systemd-boot, btrfs `@` `@home` `@snapshots`) загружается в QEMU до входа и ставится на диск (`tests/boot.py`, `tests/install.py`, x86_64)
-- [x] живой ISO: `bootstrap.sh iso` — флешка или DVD (UEFI), squashfs под overlay, firmware для ПК, установщик с экранами `cleanlinux-setup` открывается сам и ставит систему без сети; в ней `base-devel` и `nano` — она сразу собирает обновления и сборки (`tests/iso.py`, [docs/INSTALL.md](INSTALL.md), x86_64)
+- [x] live-образ для флешки: `bootstrap.sh live` — сырой GPT-образ (ESP + btrfs zstd или ext4) со слоями `@/`, `nonfree/`, `spins/NAME/`, `live/` вместо ISO и squashfs; рабочий стол labwc и установщик с экранами `cleanlinux-setup` открываются сами, установка — копией слоёв, без сети; в системе `base-devel` и `nano` — она сразу собирает обновления и сборки (`tests/live.py` для x86_64 и arm64, [docs/INSTALL.md](INSTALL.md); [#13](https://github.com/vovawees/CleanLinux/issues/13))
 - [x] [cleanlinux-boot](https://github.com/vovawees/cleanlinux-boot) и [cleanlinux-install](https://github.com/vovawees/cleanlinux-install) на C; вход (Linux-PAM, shadow), eudev, сеть (dhcpcd, iwd), e2fsprogs, btrfs-progs, dosfstools
 - [x] самосборка: `bootstrap native` — система собирает `base-devel` своим компилятором и своим burn
 - [x] железо: FIRMWARE и KERNEL_CMDLINE в профилях, пакет `hardware` (quirks, модули, I/O-планировщик), Mesa/Vulkan по `VIDEO_CARDS`, ALSA и SOF, Bluetooth, NVIDIA (`nonfree`), zram, питание и подсветка
@@ -81,17 +81,18 @@ bootstrap на чужом хосте.
 - [x] сервисы dinit для загрузки (`cleanlinux-boot`): декларативные сервисы и помощник на C вместо shell-скриптов — `/proc` `/sys` `/dev` `/run`, fsck и `mount -a`, hostname, sysctl, загрузка модулей через libkmod, seed случайных чисел, часы, getty на tty и на последовательном порту, корректное выключение
 - [x] вход в систему: Linux-PAM, shadow (`passwd`, `useradd`), `login` и `su` из util-linux
 - [x] устройства: eudev (udev без systemd: правила, hwdb, `libudev` — без него не работают libinput, Mesa и любой DE)
-- [x] ядро: драйверы накопителей и файловые системы корня встроены (NVMe, AHCI, virtio, btrfs, vfat) — загрузка без initramfs по `root=PARTUUID=`; маленький генератор initramfs для случаев, где без него нельзя (LUKS, модульный storage на arm64)
+- [x] ядро: драйверы накопителей и файловые системы корня встроены (NVMe, AHCI, virtio, btrfs, vfat) — загрузка без initramfs по `root=PARTUUID=`; маленький генератор initramfs для случаев, где без него нельзя (живая система, модульный storage на arm64)
 - [x] файловые системы: e2fsprogs, btrfs-progs, dosfstools
 - [x] загрузчик: systemd-boot на UEFI (собирается отдельно, без systemd); хук burn кладёт ядро в ESP и пишет запись загрузчика при установке и обновлении ядра
 - [x] образ диска `bootstrap.sh disk`: GPT, ESP + btrfs (подтома `@`, `@home`, `@snapshots`, сжатие zstd), собирается без root-прав
-- [ ] тест загрузки в QEMU (`tools/check.sh --full`): образ грузится в QEMU до приглашения `login:` (x86_64, затем aarch64) — x86_64 проходит (`tests/boot.py`, `tests/install.py`), aarch64 — [#1](https://github.com/vovawees/CleanLinux/issues/1)
+- [x] тест загрузки в QEMU (`tools/check.sh --full`): образ грузится в QEMU до приглашения `login:` — x86_64 (`tests/boot.py`, `tests/install.py`, `tests/live.py`) и aarch64 (`virt`, AAVMF: `tests/live.py --arch aarch64` — живая система, установка и загрузка установленной; [#1](https://github.com/vovawees/CleanLinux/issues/1))
 - [x] сеть: iproute2, dhcpcd, iwd (Wi-Fi), openresolv, сервисы dinit
 - [x] установщик `cleanlinux-install` (C, отдельный репозиторий): разметка, `burn -r /mnt install base`, fstab, загрузчик, пользователь — как `pacstrap` + `genfstab`, без выбора DE
-- [x] зашифрованный корень (LUKS2): cryptsetup (json-c, popt, lvm2/libdevmapper), `cleanlinux-install --encrypt`, initramfs cleanlinux-boot спрашивает пароль — `tests/install.py --encrypt` проходит в QEMU (x86_64, [#2](https://github.com/vovawees/CleanLinux/issues/2))
-- [x] живой ISO `bootstrap.sh iso` (без root): гибридный образ xorriso — раздел EFI в GPT для флешки и El Torito для DVD, systemd-boot с пунктами live / copy to RAM / safe graphics / serial, initramfs cleanlinux-boot монтирует squashfs по метке тома (`root=live:`), автовход root, кеш пакетов для `burn clone`, firmware GPU, Wi-Fi, Bluetooth и Ethernet для ПК — `tests/iso.py` (как флешка и как DVD, с LUKS2) ([#10](https://github.com/vovawees/CleanLinux/issues/10))
-- [x] установщик с экранами `cleanlinux-setup` (TUI на C, English и русский): язык, раскладка и шрифт консоли, часовой пояс с поиском, диск, шифрование, пользователь, пароли, профиль устройства, сводка, прогресс — открывается сам в живой системе ([#11](https://github.com/vovawees/CleanLinux/issues/11))
-- [ ] ISO на настоящих ПК: отчёты о загрузке и установке (флешка, Wi-Fi, видеокарты) — [#12](https://github.com/vovawees/CleanLinux/issues/12)
+- [x] без шифрования диска: LUKS2 (`--encrypt`, пароль в initramfs) убран из установщика и cleanlinux-boot — проще установка и меньше образ; cryptsetup и lvm2 остались отдельными рецептами для сборок ([#14](https://github.com/vovawees/CleanLinux/issues/14), раньше [#2](https://github.com/vovawees/CleanLinux/issues/2))
+- [x] live-образ `bootstrap.sh live` (без root): ESP `CL_EFI` с systemd-boot (пункты: сборка, консоль, copy to RAM, safe graphics, без проприетарных драйверов, serial), раздел `CL_LIVE_<дата>` — btrfs zstd:15 (`mkfs.btrfs --rootdir --shrink`) или ext4; initramfs cleanlinux-boot монтирует overlay слоёв с tmpfs (`root=live:`, `cleanlinux.live.spin=`, `cleanlinux.live.nonfree=0`, `cleanlinux.live.toram`), автовход root, firmware GPU, Wi-Fi, Bluetooth и Ethernet для ПК и arm64 — `tests/live.py` ([#10](https://github.com/vovawees/CleanLinux/issues/10) → [#13](https://github.com/vovawees/CleanLinux/issues/13))
+- [x] установщик с экранами `cleanlinux-setup` (TUI на C, English и русский, шаги слева): язык, раскладка, часовой пояс с поиском, диск, компьютер и пользователь (root — тот же пароль), «Система» (рабочий стол, проприетарные драйверы — включены по умолчанию, профиль устройства, автовход), сводка, копирование с прогрессом — открывается сам в живой системе и в окне на рабочем столе ([#11](https://github.com/vovawees/CleanLinux/issues/11), [#15](https://github.com/vovawees/CleanLinux/issues/15))
+- [x] размер: замеры слоёв, прошивок и модулей при каждой сборке образа; без кеша пакетов на носителе (установка копией), модули и прошивки сжаты zstd, раздел btrfs zstd:15 ([#16](https://github.com/vovawees/CleanLinux/issues/16))
+- [ ] live-образ на настоящих ПК и устройствах: отчёты о загрузке и установке (флешка, Wi-Fi, видеокарты, рабочий стол) — [#12](https://github.com/vovawees/CleanLinux/issues/12)
 
 ## Этап 2. Самодостаточная база
 
@@ -143,7 +144,8 @@ bootstrap на чужом хосте.
 - [x] образ со сборкой: `bootstrap.sh disk --spin <repo>` — база + сборка + профиль железа → готовый образ
 - [x] `docs/SPINS.md`: как сделать свою сборку и что база ей гарантирует
 - [x] пустой шаблон сборки для старта своих репозиториев
-- [ ] первые сборки — отдельными репозиториями (например, KDE Plasma и labwc); в базу они не входят — labwc: [cleanlinux-spin-labwc](https://github.com/vovawees/cleanlinux-spin-labwc); KDE Plasma — [#9](https://github.com/vovawees/CleanLinux/issues/9)
+- [x] образ флешки со сборкой: `bootstrap.sh live --spin <repo>` — сборка своим слоем `spins/<имя>/` и пунктом меню загрузки, установщик предлагает её на экране «Система»
+- [ ] первые сборки — отдельными репозиториями; в базу они не входят — labwc готов: [cleanlinux-spin-labwc](https://github.com/vovawees/cleanlinux-spin-labwc) — панель sfwbar, экранная клавиатура, автоповорот, масштаб по DPI, блокировка, скриншоты, установщик в окне живой системы ([#17](https://github.com/vovawees/CleanLinux/issues/17)); KDE Plasma — [#9](https://github.com/vovawees/CleanLinux/issues/9)
 
 ## burn на C (параллельно этапам)
 

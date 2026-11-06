@@ -1,0 +1,55 @@
+LIVE USB IMAGE (bootstrap.sh live; lib.sh live_defaults/live_check/live_root/live_layer/live_esp/live_fs/live_image;
+#13; "iso" stage = alias of live with a warning, there is NO ISO and NO squashfs any more)
+output: build/ARCH/cleanlinux-ARCH-PROFILE[-SPIN+SPIN]-YYYYMMDD.img + .sha256 (UEFI only, Secure Boot off),
+  written whole with dd / balenaEtcher / Rufus DD mode (docs/INSTALL.md).
+layout: GPT, p1 ESP FAT "CL_EFI" from 1 MiB (systemd-boot BOOTX64.EFI|BOOTAA64.EFI, kernel, initramfs,
+  loader.conf: default = first spin entry, timeout 5, editor yes, console-mode keep), p2 "CleanLinux live" =
+  btrfs (LIVE_FS=btrfs default, -m single -d single, --rootdir --compress zstd:15 --shrink, made under unshare -r;
+  needs btrfs-progs 6.13+) or ext4 (LIVE_FS=ext4: no journal, resize2fs -M). Label LIVE_LABEL or CL_LIVE_YYYYMMDD.
+  1 MiB at the end for the backup GPT. No encryption anywhere (#14: no LUKS; cryptsetup/lvm2 only as recipes).
+medium tree (p2): @/ = the system (rootfs + DISK_PACKAGES linux systemd-boot cleanlinux-install iwd nano +
+  LIVE_PACKAGES linux-firmware wireless-regdb, base-devel when LIVE_BASE_DEVEL=1), nonfree/ = what LIVE_NONFREE adds
+  (x86_64: nvidia steamdeck-dsp, ALLOW_NONFREE=1; arm: none), spins/NAME/ = what `burn spin add` + install of the
+  spin adds, live/ = live-only files (hostname cleanlinux-live, tmpfs fstab, iwd in boot.d, agetty --autologin
+  root for getty + serial-getty, /root/.bash_profile -> cleanlinux-setup --auto, /etc/motd), README.txt.
+  Layers = bootstrap/layer.py OLD NEW OUT: files new/changed in NEW + overlayfs whiteouts (char 0:0) for removed
+  files, opaque dirs (trusted.overlay.opaque=y) when a dir was replaced; tests/layer.sh tests it.
+boot: root=live:LABEL=X (cleanlinux-boot >= 0.5.0 init.c): blkid finds the partition, mounts it RO at
+  /run/cleanlinux/live/medium; overlay lowerdir = live : spins/NAME (cleanlinux.live.spin=NAME) : nonfree
+  (unless cleanlinux.live.nonfree=0) : @, upper = tmpfs; cleanlinux.live.toram copies the partition to RAM first.
+  Initramfs only because R/etc/cleanlinux/initramfs.d/10-live.conf enable=yes during live_esp (removed after).
+menu (live_image): 0-SPIN "CleanLinux live (labwc)" quiet cleanlinux.live.spin=labwc (default if a spin),
+  1-live "(console)", 2-toram, 3-safe-graphics (nomodeset), 4-free-drivers (cleanlinux.live.nonfree=0, only with
+  nonfree/), 5-serial (console=tty0 console=ttyS0|ttyAMA0,115200). Entries 2-4 keep the spin. arm64: 0-4 start
+  with console=tty0 (SPCR/stdout-path would make the firmware's UART the main console: installer + desktop of
+  root went to serial; QEMU virt showed a bare tty1). tests/live.py appends the serial console (SMBIOS) last.
+firmware: FIRMWARE="LIVE_FIRMWARE" appended to @/etc/burn/burn.conf BEFORE installing (unless the profile lists
+  its own; LIVE_FIRMWARE=all = whole 2 GB). PCs: amdgpu radeon i915 xe nvidia amd-ucode iwlwifi ibt rtw88/89 rtlwifi
+  rtl_bt rtl_nic mediatek ath9k_htc ar3k ath10k ath11k ath12k qca brcm tigon mrvl cirrus cs35l41/56. ARM: qcom
+  Adreno/GMU/venus/DSPs of sm8150..sm8650 sc8280xp x1e80100, ath10k WCN3990 ath11k ath12k qca brcm cypress rtw
+  mediatek arm/mali rockchip meson amlogic ti-connectivity. Every prefix must match WHENCE or the recipe dies.
+spin in the image: --spin DIR|URL (repeatable) -> spin_add into a copy of @, its layer spins/NAME; packages are
+  built NATIVELY in the root when it has base-devel (see pitfalls). The nonfree/ layer too: lib.sh root_install
+  ROOT PKG... = in_root burn when can_run_target && base-devel, else the host's cross burn (cross Mesa needed a
+  host glslangValidator; nvidia >= 595.104.02-2 unpacks with TAR_OPTIONS=--no-same-owner: uid 0 of a userns
+  cannot chown). labwc-spin >= 2-2 opens the installer maximized (foot --maximized: at 800x600 the panel hid
+  its key hints). DISK_PACKAGE_FEATURES="mesa -video_cards_X"
+  -> R/etc/burn/package.features (x86_64 build: -video_cards_intel, aarch64: -video_cards_panfrost: their Mesa
+  drivers need more build deps; those GPUs run labwc with the pixman renderer).
+install (cleanlinux-install >= 0.7): copies @ + nonfree/ + spins/NAME (as overlayfs shows them, whiteouts applied,
+  xattrs, hard links) to the disk; no live/. Then fstab, users, hostname, boot entry.
+TEST tests/live.py IMG [--arch aarch64] [--timeout S] [--keep DIR]: QEMU (q35+OVMF / virt+AAVMF, TCG), IMG as
+  usb-storage on qemu-xhci (snapshot=on), empty virtio disk; serial console via SMBIOS type 11
+  io.systemd.boot.kernel-cmdline-extra (both arches; ',,' escapes commas) -> autologin root -> cleanlinux-setup on
+  ttyS0/ttyAMA0 (vt220 ASCII, 80x24, mini VT emulator). Russian path, zone by search (Europe/Moscow), disk (the
+  stick cannot be chosen), user (root same password), System screen (desktop + nonfree as offered), summary,
+  "Erase and install" -> "Выйти в консоль" -> live checks (overlay root over the layers, no squashfs, no package
+  cache, services, LIVE-SPINS) -> poweroff -> new disk alone -> login user then root -> checks (hostname, tz,
+  keymap+font, groups, ALLOW_NONFREE=1, btrfs layout, boot entry, services, same packages as live, no live
+  settings: autologin/setup at login/root=live; with base-devel gcc make perl python3 cmake meson).
+  Logs IMG.live.log IMG.installed.log (next to IMG). TCG, no KVM: minutes for a console image.
+SCREENSHOTS tools/screenshots.py IMG OUTDIR [--arch x86_64|aarch64] [--lang ru|en] [--install] [--desktop]
+  [--entry N] [--size 800x600]: x86 -device VGA xres/yres, aarch64 -device ramfb + usb-kbd; QMP send-key +
+  screendump; OUTDIR/boot/NN.png (first minute), boot/menu.png (systemd-boot menu detected: <=4 colours + grey bar
+  (152,152,152)); --desktop waits for a colourful frame (>256 colours) -> 01-desktop.png, meta -> 02-menu.png;
+  --entry N presses down N times in the menu. PNG8 via magick for docs/images.

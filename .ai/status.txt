@@ -1,17 +1,33 @@
 STATUS (update at every milestone)
-2026-11-05
-- RELEASED: live ISO iso-2026.11.5 (CleanLinux release, "latest"): cleanlinux-x86_64-generic-x86_64-20261105.iso,
-  1223751680 bytes, sha256 760695ff69a9acac5926a5c25c9c6db2202d093aa3d1998e1aad80ff1042b57b, 83 packages
-  (base + base-devel + linux systemd-boot cleanlinux-install iwd nano linux-firmware wireless-regdb).
-  Copy on the VPS: /home/opc/ai_workspace/cleanlinux/ (ISO + .sha256).
-- DONE #10 live ISO, #11 installer with screens (closed, board Done). tests/iso.py USB ok (252 s TCG) and
-  --cdrom --encrypt ok (343 s); docs/INSTALL.md + README with screenshots in docs/images (tools/screenshots.py).
-- Releases this round: cleanlinux-boot 0.4.1, cleanlinux-install 0.6.3, cleanlinux-profiles 2026.11.5;
-  recipes: pambase 2026.1-3, flex 2.6.4-2, ninja 1.13.2-2 (makedepends cmake), nano 9.3 (new), glibc 2.44-2
-  (C.UTF-8 compiled), perl 5.44.0-2 (libperl.so SONAME), bc 1.08.2-2 (MAKEINFO=true).
-- Build timings (2 CPUs, no KVM): toolchain ~65 min, base ~85 min, native (base-devel) ~70 min (cmake ~30 of it,
-  LTO links incl. its tests: candidate -DBUILD_TESTING=OFF), iso ~1 h on a fresh kernel, ~2 min otherwise.
-- OPEN: #12 reports from real PCs (nothing verified on hardware yet), #1 aarch64 ISO/QEMU, #3 native repro,
-  BIOS boot NOT planned (UEFI only), Secure Boot signing (shim/MOK) maybe later. Installer sets no LANG for the
-  installed system (C.UTF-8 from /etc/profile); ru_RU.UTF-8 needs localedef on the device.
+2026-11-06
+- RELEASED: live USB images live-2026.11.6 (CleanLinux release, "latest"; no ISO any more, #13):
+  cleanlinux-x86_64-generic-x86_64-labwc-20261106.img 1111490560 bytes (labwc + console, nonfree layer),
+  cleanlinux-aarch64-generic-aarch64-labwc-20261105.img 700448768 bytes (labwc + console),
+  cleanlinux-aarch64-generic-aarch64-20261105.img 633339904 bytes (console only); each + .sha256.
+  Copies: the release assets; aarch64 also on the VPS img/ (+ img/old: before btrfs-progs 7.3-3).
+- DONE this round: #13 live USB image (raw GPT, btrfs zstd:15 layers @/ nonfree/ spins/NAME/ live/), #14 no LUKS,
+  #15 installer 8 screens (System screen: profile, desktop labwc/console, nonfree default on), #16 size (no package
+  cache, zstd modules+firmware, btrfs-progs 7.3-3 lazy data chunks: -25%), #17 labwc spin (labwc-spin 2-2:
+  installer maximized), #1 aarch64 (QEMU virt: boot/install/live tests). Board: Done. #12 (real PCs) stays open.
+- Tests (QEMU TCG, no KVM): tests/live.py ok for all three images: x86 labwc 170 s (sandbox), arm64 labwc 305 s,
+  arm64 console 255 s (VPS); desktop screenshots: x86 1024x768 (desktop after 27 s), arm64 800x600 ramfb (50 s).
+- Sizes (img / btrfs partition (used) / packages / installed on btrfs zstd:1):
+  x86 labwc 1060 MiB / 1037 (999; unpacked @ 1.1G, nonfree 710M, spins 200M) / 165 = base 79 + labwc 76 + nonfree
+  10 more (17 packages are in BOTH nonfree/ and spins/labwc/: mesa, libglvnd, python-*...) / 1.8 GiB -> 1.3G on /;
+  arm64 labwc 668 / 645 (617) / 156 = 79 + 77 / 1.2 GiB -> 837 MiB; arm64 console 604 / 581 (550) / 79 / 1.0 GiB
+  -> 730 MiB on /, 14 MiB /boot. Biggest packages (MiB unpacked): x86 nvidia 599, linux-firmware 362 (PC list),
+  gcc 235, perl 68, cmake 55, mesa 47, python 38, glibc 36, linux 33 (405 modules); arm64 linux-firmware 225, gcc
+  219, linux 203 (dtbs 119, Image 43, 1726 modules 22), perl 70, mesa 47, cmake 46, glibc 45, python 40.
+  base-devel stays in @/ by design (burn builds on the device). Table in docs/INSTALL.md#размер.
+- Timings: arm64 (VPS 4 cores): kernel ~38 min, spin 77 pkgs ~24 min, image ~2 min; x86 (sandbox 2 cores):
+  kernel ~35 min, nonfree + spin natively ~30 min (mesa 10 min), image ~3 min.
+- Versions: Recipes 8241407 (nvidia 595.104.02-2 tar --no-same-owner, btrfs-progs 7.3-3, burn 0.9.3, libxkbcommon
+  1.13.2-4, alsa-ucm-conf 1.2.16.1-3, gawk 5.4.1-2), spin cleanlinux-spin-labwc 7debe3d (labwc-spin 2-2),
+  cleanlinux-install 0.8.1 (repo 7015804: test numbers only), cleanlinux-boot 0.5.2, cleanlinux-profiles
+  2026.11.5, Linux 7.3.1, Mesa 26.2.6 (x86 -intel, arm64 -panfrost).
+- OPEN / NEXT: #12 reports from real hardware (nothing verified on devices); Intel and Mali GPUs need Mesa with
+  LLVM (recipes exist: llvm, spirv-llvm-translator, spirv-tools; too slow for 2 cores) -> pixman until then;
+  the layers still carry makedepends (python-*, glslang, gperf, wayland-protocols) and nonfree/ + spins/labwc/
+  duplicate 17 packages (~80 MiB unpacked): candidates to drop; the Russian installer shows "614 MiB of 1.2 GiB"
+  (the "of" comes from the CLI line); NVK needs Rust; Secure Boot (shim/MOK) maybe later; BIOS boot NOT planned.
 - PENDING (other task of the owner): Notion custom agent "Personal Assistant" setup was interrupted, offer to resume

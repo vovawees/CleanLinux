@@ -1,26 +1,37 @@
 REPOS (github.com/vovawees, all MIT, default branch main)
-- CleanLinux            profiles/ bootstrap/ tests/ tools/ docs/ .ai/ ; releases: profiles-YYYY.MM.DD[.N]
-                        (cleanlinux-profiles tarball, tools/profiles-tarball.sh), ISO releases iso-YYYY.MM.DD
-- CleanLinux-Recipes    packages/<name>/recipe (+patches, config fragments); 182 recipes; NO binaries;
+- CleanLinux            profiles/ bootstrap/ (bootstrap.sh lib.sh layer.py host-burn.sh) tests/ tools/ docs/ .ai/
+                        releases: profiles-YYYY.MM.DD[.N] (cleanlinux-profiles tarball, tools/profiles-tarball.sh),
+                        live USB images live-YYYY.MM.DD (x86_64 labwc, aarch64 labwc, aarch64 console: plain .img
+                        + .sha256, btrfs zstd inside so no outer compression; < 2 GiB per asset), old iso-2026.11.5
+- CleanLinux-Recipes    packages/<name>/recipe (+patches, config fragments); 190 recipes; NO binaries;
                         tools/check.sh (lint, links+sha256 of changed recipes, README table), tools/readme.sh --write
                         regenerates the package table in README.md (check.sh fails when it is stale)
 - burn                  package manager in C (src/*.c), 0.9.2; make; make check
 - cleanlinux-boot       C: init (initramfs + PID1 helper for dinit), kernel sync (ESP), initramfs builder,
-                        getty, vconsole, sysusers, tmpfiles, services/ (dinit); 0.4.0 = root=live: + vconsole
-- cleanlinux-install    C: cleanlinux-install (CLI installer) + cleanlinux-setup (TUI, own tui.c, no ncurses);
-                        0.6.2. make check = tests/unit (90) + tests/cli.sh + python3 tests/setup.py (pty + mini VT)
-- cleanlinux-spin-labwc first spin (labwc desktop); cleanlinux-spin-template: template for spins
+                        getty (+ /etc/cleanlinux/autologin), vconsole, sysusers, tmpfiles, services/ (dinit);
+                        0.5.0 root=live: = btrfs/ext4 partition with layers (no ISO, no squashfs, no LUKS),
+                        0.5.1 autologin of the user on tty1, 0.5.2 vconsole without a text console (QEMU virt)
+- cleanlinux-install    C: cleanlinux-install (CLI) + cleanlinux-setup (TUI, own tui.c, no ncurses); 0.8.1
+                        (layer copy, System screen: desktop/nonfree/profile/autologin). make check
+- cleanlinux-spin-labwc labwc desktop spin: spin.conf + packages/ (labwc wlroots sfwbar foot fcft tllist swaybg
+                        swayidle swaylock wvkbd grim slurp wl-clipboard wlr-randr brightnessctl dejavu-fonts
+                        cleanlinux-icon-theme; labwc-spin = config + helper script labwc-spin); v2 = 6b9a94c
+- cleanlinux-spin-template: template for spins
 
 RELEASE PROCEDURE (component repos burn / cleanlinux-boot / cleanlinux-install)
-1 bump VERSION in Makefile, make check, commit, push
-2 make dist  -> NAME-VER.tar.gz (git archive of HEAD, gzip -n)
-3 ~/release.sh REPO vVER "TITLE" NOTES.md TARBALL   (creates/reuses release, uploads asset; notes in Russian)
+1 bump VERSION in Makefile, make check, commit, tag vVER, push (with the tag)
+2 make dist  -> NAME-VER.tar.gz (git archive of the tag vVER, gzip -n; cleanlinux-install >= 0.8.1 archives the tag)
+3 release vVER via ~/gh.sh POST /repos/vovawees/REPO/releases + upload the tarball (uploads.github.com); notes in Russian
 4 CleanLinux-Recipes: packages/NAME/recipe version= + sha256=, tools/readme.sh --write, tools/check.sh, commit, push
-helpers in the sandbox home (NOT in repos): ~/gh.sh METHOD PATH [json] (REST + POST /graphql), ~/release.sh,
-token ~/.gh_token, ~/.git-credentials. git user Vovawe <vovawees@gmail.com>.
+helpers in the sandbox home (NOT in repos, recreate when the sandbox resets): ~/gh.sh METHOD PATH [json] (REST + POST /graphql),
+tokens in ~/.secrets/ (never in a repo), ~/.git-credentials. git user vovawees <vovawees@gmail.com>.
+Release assets: POST https://uploads.github.com/repos/vovawees/REPO/releases/ID/assets?name=FILE (Content-Type
+application/octet-stream), limit 2 GiB per asset.
 
 ISSUES (CleanLinux): #1 aarch64 QEMU boot, #3 native repro, #6 handheld UCM, #7 input/sensors, #8 real devices,
-#9 KDE spin, #10 live ISO, #11 TUI installer. Milestones: 1 "Этап 1 · Загружаемая база", 2 "Этап 2 ·
+#9 KDE spin, #12 reports from real PCs, #13 live USB image (btrfs/ext4), #14 no LUKS, #15 simpler installer,
+#16 image/system size, #17 labwc spin. Closed: #2 LUKS (superseded by #14), #4 U-Boot/ABL, #5 profiles,
+#10 live ISO (superseded by #13), #11 TUI installer. Milestones: 1 "Этап 1 · Загружаемая база", 2 "Этап 2 ·
 Самодостаточная база", 3 "Этап 3 · Железо", 4 "Этап 5 · Сборки поверх базы".
 Labels: roadmap, layer: core, layer: hardware, arch: x86_64, arch: aarch64, enhancement, documentation, spin,
-hardware, needs device.
+hardware, needs device. Project board: github.com/users/vovawees/projects/1 (Status, "Этап").

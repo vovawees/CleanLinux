@@ -13,19 +13,20 @@
   ещё не проверялось;
 - **нет** — не сделано; в скобках — чего не хватает.
 
-**Честно о состоянии:** ни один профиль устройства ещё не запускался на настоящем железе. Проверен только
-`generic-x86_64` в QEMU (UEFI/OVMF, без KVM): загрузка до `login:`, сервисы dinit, DHCP, zram, `burn doctor`,
-установка `cleanlinux-install` на второй диск и загрузка установленной системы, в том числе с корнем в LUKS2 и
-вводом пароля в initramfs (`tests/boot.py`, `tests/install.py`, `tests/install.py --encrypt`). Отчёты с
-устройств — самое полезное, что можно прислать (как — ниже).
+**Честно о состоянии:** ни один профиль устройства ещё не запускался на настоящем железе. Проверены только
+generic-профили в QEMU без KVM: `generic-x86_64` (q35, UEFI/OVMF) и `generic-aarch64` (`virt`, UEFI/AAVMF) —
+загрузка live-образа как USB-флешки, живая система (overlay слоёв носителя), экраны установщика, установка на
+пустой диск и загрузка установленной системы (`tests/live.py`), а также образ диска: загрузка до `login:`,
+сервисы dinit, DHCP, zram, `burn doctor`, установка `cleanlinux-install` на второй диск (`tests/boot.py`,
+`tests/install.py`). Отчёты с устройств — самое полезное, что можно прислать (как — ниже).
 
 ## Статус
 
 | Профиль | Арх. | Загрузка | GPU | Звук | Wi-Fi / BT | Сон | Батарея | Ввод |
 |---|---|---|---|---|---|---|---|---|
-| `generic-x86_64` | x86-64-v2 | проверено в QEMU (UEFI, systemd-boot, btrfs) | описано (amd, intel, nouveau, virgl) | описано (HDA, SOF) | описано | описано (s2idle) | — | описано |
+| `generic-x86_64` | x86-64-v2 | проверено в QEMU (UEFI, systemd-boot, btrfs; live-образ с флешки и установка) | описано (amd, intel, nouveau, virgl) | описано (HDA, SOF) | описано | описано (s2idle) | — | описано |
 | `generic-x86_64-v3` | x86-64-v3 | описано (та же сборка с `-march=x86-64-v3`) | описано | описано | описано | описано | — | описано |
-| `generic-aarch64` | arm64 | описано (UEFI, systemd-boot; в QEMU не проверялось) | описано (freedreno, panfrost, v3d, virgl, …) | описано | описано | — | — | описано |
+| `generic-aarch64` | arm64 | проверено в QEMU (`virt`, UEFI/AAVMF, systemd-boot; live-образ с флешки и установка) | описано (freedreno, panfrost, v3d, virgl, …) | описано | описано | — | — | описано |
 | `steam-deck` | x86-64 | описано (UEFI) | описано (radeonsi, RADV) | описано (LCD: ACP5x + CS35L41, UCM `Valve-Jupiter-1` в `alsa-ucm-conf`; OLED: SOF `nau8821-max` — firmware и UCM есть только у Valve: `nonfree`-рецепт `steamdeck-dsp`, ставится при `ALLOW_NONFREE=1`, [#6](https://github.com/vovawees/CleanLinux/issues/6)) | описано (firmware по `FIRMWARE`) | описано | описано | описано (`hid-steam`, датчики) |
 | `rog-ally` | x86-64 | описано (UEFI) | описано (RDNA 3) | описано (HDA + усилители CS35L41) | описано (MT7922) | описано | описано | описано (`hid-asus`, BMI323) |
 | `rog-xbox-ally-x` | x86-64 | описано (UEFI) | описано (RDNA 3.5) | описано | описано | описано | описано | описано |
@@ -65,8 +66,8 @@
 усилителей Steam Deck LCD, `SERIAL_MULTI_INSTANTIATE` у усилителей CS35L41 ROG Ally и Legion Go.
 
 У RK3566 одно ядро на много плат: драйверы экранов собраны модулями и перечислены в
-`quirks/cleanlinux/initramfs.d/20-display.conf` как `optional=` (cleanlinux-boot ≥ 0.3.1) — с
-зашифрованным корнем драйвер экрана нужной платы оказывается в initramfs и запрос пароля виден.
+`quirks/cleanlinux/initramfs.d/20-display.conf` как `optional=` (cleanlinux-boot ≥ 0.3.1) — если
+initramfs есть (живая система), драйвер экрана нужной платы оказывается в нём и сообщения загрузки видны.
 
 Что уже есть в основных проектах и не дублируется в `quirks/`:
 

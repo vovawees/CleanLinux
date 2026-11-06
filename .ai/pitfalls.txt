@@ -6,21 +6,21 @@ PITFALLS met so far
 - xorriso -smbios / qemu: commas inside -smbios value must be doubled.
 - systemd-boot reads SMBIOS type 11 io.systemd.boot.kernel-cmdline-extra= (Type #1 entries) -- used by tests.
 - Amazon Linux meson is too old (0.63 needs distutils): bootstrap uses the meson recipe's tarball (host_meson).
-- libblkid sees the iso9660 label on the whole stick AND on partition 1 -> live_medium tries each.
-- Rufus ISO mode copies files to FAT (label truncated to 11 chars) -> live medium not found: document DD mode.
+- (ISO era) libblkid saw the iso9660 label on the whole stick AND on p1; the live image is plain GPT now.
+- Rufus must write the .img in DD mode (it is a disk image); balenaEtcher/dd write it whole anyway.
 - burn.conf FIRMWARE in the live root is inherited by installs; device profiles must not inherit it (conf_unset).
 - cleanlinux-install tarball must not be committed: .gitignore /cleanlinux-install-*.tar.gz (make dist output).
-- sandbox: no KVM -> QEMU TCG (ISO boot to installer ~40 s, full tests/iso.py 2-4 min); 2 CPUs, 4 GB RAM, 32 GB disk.
-- cryptsetup (initramfs) writes its prompt, THEN tcsetattr(TCSAFLUSH) turns echo off and drops pending input: a
-  passphrase sent the moment the prompt shows is echoed and thrown away, the boot waits forever. Tests wait 3 s.
+- sandbox: no KVM -> QEMU TCG (live image boot to the installer ~1 min, tests/live.py of the x86 labwc image
+  ~3 min (170 s for 2026.11.6), aarch64 on the VPS ~4-5 min); 2 CPUs, 4 GB RAM, 32 GB disk.
 - tzdata: zic is a host tool; build it with `env -u CC ... make CC=gcc cc=gcc` (cross CC leaks otherwise).
 - linux-firmware: newer releases keep licenses in LICENSES/ (a directory): install loops over LICEN[CS]E* LICENSES/*.
 - mount(2) probing every fs of /proc/filesystems prints "VFS: Can't find ext4 filesystem" / "Can't find a SQUASHFS
   superblock" unless MS_SILENT (cleanlinux-boot >= 0.4.1 passes it, as the kernel does for the root).
 - pam_motd in system-login AND login(1) printing /etc/motd = motd twice (pambase >= 2026.1-3 drops pam_motd).
-- tests/iso.py screen matching: the TUI box border is part of the line ("| > /dev/vda"); the progress screen can be
-  skipped entirely on a fast run: wait for any_of("Разметка диска", "Копирование пакетов", "CleanLinux установлен",
-  "Установка не удалась").
+- tests/live.py screen matching: the TUI box border is part of the line ("| > /dev/vda"); the progress screen can
+  be skipped on a fast run: wait for any of "Разметка диска", "Копирование системы", "CleanLinux установлен", ...
+- serial console echo: the command line sent to the shell comes back in the buffer; markers searched in the output
+  must not appear literally in the command (printf 'LIVE-%s=%s' NONFREE $N, not echo LIVE-NONFREE=yes).
 - `pkill -f PATTERN` inside a bash -c whose own command line contains PATTERN kills that shell (exit 143).
 - this QEMU (Amazon Linux) has no user (slirp) networking: tests use nic_args() (hubport NIC, no network).
 - glibc >= 2.35 has a C.UTF-8 locale but NOT built in: it must be compiled (glibc 2.44-2 recipe: make -C
@@ -31,3 +31,58 @@ PITFALLS met so far
 - burn orders builds by depends+makedepends only: build_type=cmake needs makedepends=(cmake) (ninja did not).
 - "shell-init: error retrieving current directory" in perl/cmake build logs: dirs removed under running
   shells (CMakeTmp, UU) -- harmless.
+- SPINS IN A LIVE IMAGE BUILD NATIVELY: with LIVE_BASE_DEVEL=1 (default) the root has base-devel, so burn builds
+  the spin's packages natively inside it (not cross with host tools). Every build tool / python module a build uses
+  must then be a packaged makedepend: elogind needed gperf python python-jinja; mesa has python python-mako
+  python-pyyaml python-packaging + python-pycparser (only for video_cards_etnaviv).
+  The host had them, so cross builds hid it. Cross-built packages are NOT reused (other buildid) -> the whole spin
+  set rebuilds natively the first time (aarch64 4 cores: hours; x86 2 cores: many hours).
+- python sdists that pin build backends (python-jinja: flit_core<4, recipe has flit-core 4.x): build_type=custom
+  with `python3 -m flit_core.wheel` + installer instead of pip/build isolation.
+- makedepends get installed into the root being built: they may end up in a spin layer (layer.py diffs the
+  whole tree): keep spins' makedepends small or remove them after the build.
+- burn update of a rootfs: remove build/ARCH/stamps/80-base to re-run the base stage; the live stage does NOT
+  upgrade packages already in the rootfs (burn install skips up-to-date names): new releases of base packages
+  need the base stage (or burn -r ROOTFS update) first.
+- elogind: libexecdir must be /usr/lib/elogind (the recipe's meson option), else elogind-uaccess-command etc.
+  land in /usr/libexec and the dinit service fails.
+- turnstile: root_session=no by default -> root (the live system) has no user session/dbus: labwc-spin starts
+  labwc under dbus-run-session for root, the `sound` helper starts PipeWire itself.
+- wlroots WLR_RENDERER=auto does not fall back to pixman when a DRM render node exists but Mesa has no driver
+  for it (Intel without iris, Mali without panfrost in these builds): labwc-spin restarts labwc with
+  WLR_RENDERER=pixman when it exits within 20 s logging a renderer error (log + .gpu file in its log dir).
+- QEMU aarch64 here (qemu-kvm 10.1 on OL9): no virtio-gpu, no VGA -> screenshots use -device ramfb (+ usb-kbd,
+  usb-tablet); TCG only, no KVM on the VPS.
+- vconsole on a machine with only the dummy console (QEMU virt serial-only): setfont fails -> cleanlinux-boot
+  0.5.2 skips the font and still loads the keymap (early-vconsole must not fail the boot).
+- gawk 5.4.1: an untyped array element first used as a number/condition then printed gave "0" instead of ""
+  (elem_new_reset() clobbers stfmt, force_string_fmt reformats): libpng's options.awk wrote a pnglibconf.h
+  without READ/SETJMP -> libpng failed natively. Fixed by gawk-elem-new-stfmt.patch (gawk 5.4.1-2, Recipes
+  5557610). Symptom of such tool bugs: a package that cross-built fine fails natively at configure/codegen.
+- gdk-pixbuf 2.44 meson has no nls option ("Unknown option") -> po/ always built; -nls removes usr/share/locale
+  after bt_install (2.44.8-3).
+- burn FILES = flat copies of the local source= files (no directories): a data tree next to the recipe is read
+  from $RECIPE_DIR (always set in the phase shell), e.g. alsa-ucm-conf ucm2/ (1.2.16.1-3).
+- cross builds into a root (--sysroot, PKG_CONFIG_SYSROOT_DIR): pkgconf puts the root before path variables
+  (pkg-config --variable): libxkbcommon 1.13.2-3 (aarch64, cross-built in an early spin run) had
+  xkb-config-root = build/aarch64/live/work/usr/share/xkeyboard-config-2 -> labwc: no keymap, exit, no desktop.
+  Spin packages build native now; release bump (-4) rebuilt it. Check: grep the build path in the package files
+  (not .BURN/: metadata keeps the flags) - only cosmetic leaks remain (bashbug, curl-config, gcc -v, openssl).
+- burn <= 0.9.2 replaced only a bare $ROOT word in trigger run= lines: gtk3's "$ROOT/usr/share/glib-2.0/schemas"
+  failed -> no gschemas.compiled. burn 0.9.3 expands $ROOT/PATH. Trigger programs run via the root's ld.so:
+  ELF only (no scripts), argv words split on blanks, no quoting.
+- arm64 firmware consoles (ACPI SPCR / DT stdout-path) become the main console unless console= is given:
+  the live entries for a screen carry console=tty0 (QEMU virt showed the installer on the serial line).
+- mkfs.btrfs --rootdir --shrink (btrfs-progs <= 7.3-2): btrfs_try_chunk_alloc() allocates the next chunk at 70%
+  use, so ~30% of the data chunks stayed allocated and EMPTY (between and after the used ones) and --shrink cuts
+  only after the last device extent: arm64 console image 820 MiB -> 604 MiB with btrfs-progs 7.3-3
+  (btrfs-progs-mkfs-shrink-lazy-data.patch: lazy data chunks during the fill + one more chunk on ENOSPC).
+  The image uses the ROOTFS's mkfs.btrfs (disk_tool): after a btrfs-progs change run `native` before `live`.
+  Check: btrfs inspect-internal dump-tree -t 11 (block group tree) of the extracted partition: used vs length.
+- mkfs.btrfs --rootdir grows a too small image file to its own estimate (uncompressed sizes + metadata per
+  inode): a second, smaller truncate does not help; only --shrink cuts it.
+- makeself installers (nvidia .run) inside the root: tar as uid 0 of a user namespace restores the archive's
+  owners, fails and the script kills itself ("Extraction failed", exit 143): TAR_OPTIONS=--no-same-owner.
+- the nonfree layer built by the host's cross burn needed Mesa's host tools (glslangValidator): it is built
+  natively in the root like the spins (lib.sh root_install); keep host-only cross builds for roots without
+  base-devel or a foreign arch without qemu-user.
